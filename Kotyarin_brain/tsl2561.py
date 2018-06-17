@@ -215,7 +215,7 @@ if __name__ == '__main__':
     i2c_line = I2C(0)
     i2c_line.set_addr(DEV_ADDRESS)
     i2c_line.set_timeout(50)
-    tsl2561 = tsl2561_control_client(i2c_line)
+    tsl2561 = Tsl2561_control_client(i2c_line)
     tsl2561.setup()
     while True:
         lux = tsl2561.get_lux()

@@ -163,7 +163,7 @@ if __name__ == '__main__':
     i2c_line = I2C(0)
     i2c_line.set_addr(DEV_ADDRESS)
     i2c_line.set_timeout(50)
-    ads1115 = ads1115_control_client(i2c_line)
+    ads1115 = Ads1115_control_client(i2c_line)
     ads1115.setup()
     while True:
         in_vol = read_pins_voltage(self)
