@@ -1,10 +1,13 @@
 import serial
-import math
+# import math
 
 from librepilot.uavtalk.uavobject import *
 from librepilot.uavtalk.uavtalk import *
 from librepilot.uavtalk.objectManager import *
 from librepilot.uavtalk.connectionManager import *
+
+DEFINITIONS_PATH = "/home/pi/Kotyarin_brain/librepilot/uavobject-synthetics"
+
 
 class Uavtalk():
     def __init__(self):
@@ -26,7 +29,7 @@ class Uavtalk():
         self.uavTalk = UavTalk(serPort, None)
 
         self.objMan = ObjManager(self.uavTalk)
-        self.objMan.importDefinitions("/home/developer/git/liberpilot/build/uavobject-synthetics/python/")
+        self.objMan.importDefinitions(DEFINITIONS_PATH)
 
         self.uavTalk.start()
 
@@ -40,8 +43,9 @@ class Uavtalk():
         if self.uavTalk:
             self.uavTalk.stop()
 
+
 class All_telemetry_logger():
-    def __init__(self,uavt,period):
+    def __init__(self, uavt, period):
         self.ATL_uavtalk = uavt
         self.telemetry_log_acc = open('telemetry_log/accel.txt', 'a')
         self.telemetry_log_att = open('telemetry_log/attitude.txt', 'a')
@@ -95,31 +99,31 @@ class All_telemetry_logger():
         self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.VelocityState, self, "_log_to_file_vel")
         self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.MagSensor, self, "_log_to_file_mag")
 
-    def _log_to_file_acc(self,args):
+    def _log_to_file_acc(self, args):
         self.telemetry_log_acc.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.AccelState.x.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AccelState.y.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AccelState.z.value)+ "\n")
 
-    def _log_to_file_att(self,args):
+    def _log_to_file_att(self, args):
         self.telemetry_log_att.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.AttitudeState.Roll.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AttitudeState.Pitch.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AttitudeState.Yaw.value) + "\n")
     
-    def _log_to_file_gyr(self,args):
+    def _log_to_file_gyr(self, args):
         self.telemetry_log_gyr.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.GyroState.x.value) + "," +
                                      str(self.ATL_uavtalk.objMan.GyroState.y.value) + "," +
                                      str(self.ATL_uavtalk.objMan.GyroState.z.value) + "\n")
 
-    def _log_to_file_vel(self,args):
+    def _log_to_file_vel(self, args):
         self.telemetry_log_vel.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.VelocityState.North.value) + "," +
                                      str(self.ATL_uavtalk.objMan.VelocityState.East.value) + "," +
                                      str(self.ATL_uavtalk.objMan.VelocityState.Down.value) + "\n")
     
-    def _log_to_file_mag(self,args):
+    def _log_to_file_mag(self, args):
         self.telemetry_log_mag.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.MagSensor.x.value) + "," +
                                      str(self.ATL_uavtalk.objMan.MagSensor.y.value) + "," +
@@ -132,18 +136,19 @@ class All_telemetry_logger():
         self.telemetry_log_vel.close()
         self.telemetry_log_mag.close()
 
+
 class Servo_control_client():
-    def __init__(self,uavt,channel,min,max,deg_ran):
+    def __init__(self, uavt, channel, min, max, deg_ran):
         self.SCC_uavtalk = uavt
         self.channel = channel
         self._setup()
-        self.setup_time_range(min,max,deg_ran)
+        self.setup_time_range(min, max, deg_ran)
 
     def _setup(self):
         self.SCC_uavtalk.objMan.ActuatorSettings.metadata.access = UAVMetaDataObject.Access.READONLY
         self.SCC_uavtalk.objMan.ActuatorSettings.metadata.updated()
 
-    def setup_time_range(self,min,max,deg_ran):
+    def setup_time_range(self, min, max, deg_ran):
         self.__min = min
         self.__max = max
         self.SCC_uavtalk.objMan.ActuatorSettings.ChannelMin.value[self.channel] = self.__min
@@ -151,13 +156,13 @@ class Servo_control_client():
         self.SCC_uavtalk.objMan.ActuatorSettings.metadata.updated()
         self.time_in_one_deg = (self.__max - self.__min) / deg_ran
 
-    def conv_deg_to_time(self,deg):
+    def conv_deg_to_time(self, deg):
         return round(deg * self.time_in_one_deg) + self.__min
 
-    def rotation_deg(self,deg):
+    def rotation_deg(self, deg):
         self.rotation(self.conv_deg_to_time(deg))
 
-    def rotation(self,position_time):
+    def rotation(self, position_time):
         if (position_time <= self.__max) and (position_time >= self.__min):
             self.SCC_uavtalk.objMan.ActuatorSettings.ChannelNeutral.value[self.channel] = position_time
             self.SCC_uavtalk.objMan.ActuatorSettings.updated()
