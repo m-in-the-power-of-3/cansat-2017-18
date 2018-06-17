@@ -5,9 +5,6 @@ import serial.threaded
 import time
 import sys
 
-# on which port should the tests be performed:
-PORT = ''
-
 class TestLines(serial.threaded.LineReader):
     def __init__(self):
         super(TestLines, self).__init__()
@@ -15,7 +12,7 @@ class TestLines(serial.threaded.LineReader):
 
     def handle_line(self, data):
         self.received_lines.append(data)
-        GSM_notification_analyse(self.received_lines):
+        GSM_notification_analyse(self.received_lines)
 
 
 def GSM_notification_handle(str):
@@ -47,7 +44,7 @@ def GSM_notification_analyse(list):
 
 
 if __name__ == '__main__':
-  
+ 
     if len(sys.argv) > 1:
         PORT = sys.argv[1]
     sys.stdout.write("Testing port: {!r}\n".format(PORT))
@@ -55,9 +52,8 @@ if __name__ == '__main__':
     ser = serial.serial_for_url(PORT, baudrate=115200, timeout=1)
     with serial.threaded.ReaderThread(ser, TestLines) as protocol:
         while True:
-            a = a +"1"
-            protocol.write_line('hello'+a)
-            protocol.write_line('world')
-            time.sleep(1)
-            print protocol.received_lines
-
+            b = input();
+            if b == 'list':
+                print protocol.received_lines
+            else:
+                ser.write(b)
