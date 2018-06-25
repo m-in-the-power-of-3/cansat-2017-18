@@ -19,14 +19,14 @@ MUX = 0x04
 # 0x06:	AIN2 - GND
 # 0x07:	AIN3 - GND
 PGA = 0x00
-# 0x00:	±6,144 В
-# 0x01:	±4,096 В
-# 0x02:	±2,048 В
-# 0x03:	±1,024 В
-# 0x04:	±0,512 В
-# 0x05:	±0,256 В
-# 0x06:	±0,256 В
-# 0x07:	±0,256 В
+# 0x00:	+-6,144 B
+# 0x01:	+-4,096 B
+# 0x02:	+-2,048 B
+# 0x03:	+-1,024 B
+# 0x04:	+-0,512 B
+# 0x05:	+-0,256 B
+# 0x06:	+-0,256 B
+# 0x07:	+-0,256 B
 MODE = 0x01
 # 0x00: continuous conversion mode
 # 0x01: singl-shot mode
@@ -59,7 +59,6 @@ class Ads1115_control_client ():
         self.config[1] = mode | (pga << 1) | (mux << 4)
         self.config[2] = 0x03 | (dr << 5)
         self.k = self._count_k(PGA)
-        self.raw
         self.time = self._count_time(dr) * 1.1
         self.telemetry_log_vol = open('telemetry_log/vol.txt', 'a')
         self.telemetry_log_vol.write("Time,vol_0,vol_1,vol_2,vol_3\n")
@@ -94,8 +93,8 @@ class Ads1115_control_client ():
 
         tic = 0
         while True:
-            self.i2c_line.write(REG_CONFIG)
-            state = self.read(2)
+            self.i2c_line.write([REG_CONFIG])
+            state = self.i2c_line.read(2)
             if (state[0] >= 0x80):
                 break
             if (tic >= TRY_NUM):
@@ -107,7 +106,7 @@ class Ads1115_control_client ():
         raw_ = (self.raw[0] << 8) + self.raw[1]
         if (raw_ >= 32768):
             raw_ = raw_ - 65535
-        return raw_ * c
+        return raw_ * self.k
 
     def _count_time(self, dr):
         if (dr == 0x00):
@@ -144,10 +143,10 @@ class Ads1115_control_client ():
         return voltage_max / 32768.0
 
     def read_pins_voltage(self):
-        in_0 = ads1115.read_voltage(0x04)
-        in_1 = ads1115.read_voltage(0x05)
-        in_2 = ads1115.read_voltage(0x06)
-        in_3 = ads1115.read_voltage(0x07)
+        in_0 = self.read_voltage(0x04)
+        in_1 = self.read_voltage(0x05)
+        in_2 = self.read_voltage(0x06)
+        in_3 = self.read_voltage(0x07)
 
         pins = [in_0, in_1, in_2, in_3]
         self.telemetry_log_vol.write(str(time.time()) + "," +
@@ -166,37 +165,9 @@ if __name__ == '__main__':
     ads1115 = Ads1115_control_client(i2c_line)
     ads1115.setup()
     while True:
-        in_vol = read_pins_voltage(self)
-        print "Pin 0 voltage = " + str(in_vol[0])
-        print "Pin 1 voltage = " + str(in_vol[1])
-        print "Pin 2 voltage = " + str(in_vol[2])
-        print "Pin 3 voltage = " + str(in_vol[3])
-
-# if __name__ == '__main__':
-#    c = 6.144 / 32768.0
-#    i2c_line = I2C(0)
-#    i2c_line.set_addr(0x48)
-#    i2c_line.set_timeout(50)
-#    i2c_line.write([0x01,0x40,0x83])
-#    while True:
-#        i2c_line.write([0x01,0xC0,0x83])
-#        #time.sleep(0,008)
-#        while True:
-#            time.sleep(0.5)
-#	    i2c_line.write([0x01])
-#            a = i2c_line.read(2)
-#            print a[0]
-#            print a[1]
-#	    if (a[0]< 128):
-#            i2c_line.write([0x00])
-#            b = i2c_line.read(2)
-#            print b
-#            print c
-#            t =  ((b[0] << 8) + b[1])
-#            if (t >= 32768):
-#                res = t - 65535
-#            else:
-#                res = t
-#            res = res * c
-#            print res
-#            break
+        in_vol = ads1115.read_pins_voltage()
+        out = (str(round(in_vol[0], 2)) + " | " +
+               str(round(in_vol[1], 2)) + " | " +
+               str(round(in_vol[2], 2)) + " | " +
+               str(round(in_vol[3], 2)))
+        print out
