@@ -18,14 +18,7 @@ class Uavtalk():
         self.connMan = None
 
     def setup(self, port):
-        if port[:3].upper() == "COM":
-            _port = int(port[3:]) - 1
-        else:
-            _port = port
-        serPort = serial.Serial(_port, 115200, timeout=.5)
-        if not serPort.isOpen():
-            raise IOError("Failed to open serial port")
-
+        serPort = port
         self.uavTalk = UavTalk(serPort, None)
 
         self.objMan = ObjManager(self.uavTalk)
@@ -166,3 +159,4 @@ class Servo_control_client():
         if (position_time <= self.__max) and (position_time >= self.__min):
             self.SCC_uavtalk.objMan.ActuatorSettings.ChannelNeutral.value[self.channel] = position_time
             self.SCC_uavtalk.objMan.ActuatorSettings.updated()
+
