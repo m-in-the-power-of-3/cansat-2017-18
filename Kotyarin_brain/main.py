@@ -1,79 +1,59 @@
-#import serial
-import i2cdev
+from settings import *
+from errors import *
+from func import *
 
-import revolution
-import ads1115
-import tsl2561
+STATE = {"error": -1, "init": 0}
 
-# UAV talk
-PORT_REVOLUTION = "/dev/ttyS1"
-
-# UART
-PORT_UART = "/dev/ttyS2"
-
-# I2C
-PORT_I2C = 0
-I2C_TIMEOUT = 2
-
-# Revolution
-REV_LOG_UPDATE_RATE = 50
-
-REV_SERVO_MIN = 700
-REV_SERVO_MAX = 2500
-REV_SERVO_DEG = 180
-REV_SERVO_CHANNEL = 0
-REV_SERVO_ROT_1 = 500
-REV_SERVO_ROT_2 = 1000
-REV_SERVO_ROT_3 = 1500
-
+SMS_ERROR = {"none": "Error: none",
+             "npna io": "Error: Init io npna error",
+             "uavtalk init": "Error: Init uavtalk error.",
+             "revolution init": "Error: Init revolution error",
+             "tsl2561 init": "Error: Init tsl2561 error",
+             "ads1115 init": "Error: Init ads1115 error"}
 
 if __name__ == '__main__':
+    sms_error = SMS_ERROR["none"]
+    # State at the begining
+    State = STATE["init"]
     # ================================================================
-    # Init block
+    # Work cycle
     # ================================================================
-    # UAV talk
-    uav_talk = revolution.Uavtalk()
-    uav_talk.setup(PORT_REVOLUTION)
+    while True:
+        if (State == STATE["init"]):
+            # ================================================================
+            # Init block
+            # ================================================================
+            try:
+                obj = init_all_deb()
+            except UAVTalkError:
+                deb_print("Init UAVTalk error (init block)")
+                sms_error = SMS_ERROR["uavtalk init"]
+                State = STATE["error"]
+                continue
+            except RevolutionError:
+                deb_print("Init revolution error (init block)")
+                sms_error = SMS_ERROR["revolution init"]
+                State = STATE["error"]
+                continue
+            except TSL2561Error:
+                deb_print("Init tsl2561 error (init block)")
+                sms_error = SMS_ERROR["tsl2561 init"]
+                State = STATE["error"]
+                continue
+            except ADS1115Error:
+                deb_print("Init ads1115 error (init block)")
+                sms_error = SMS_ERROR["ads1115 init"]
+                State = STATE["error"]
+                continue
+            except IOError:
+                deb_print("Init IO error")
+                sms_error = SMS_ERROR["npna io"]
+                State = STATE["error"]
+                continue
+            else:
+                revolution_log = obj["log"]
+                revolution_servo = obj["servo"]
+                pi_tsl2561 = obj["tsl2561"]
+                pi_ads1115 = obj["ads1115"]
 
-    # Uart
-    # -------------------------------------------------------------<==
-    # TODO: init uart for GSM
-    # -------------------------------------------------------------<==
-
-    # I2C
-    i2c_line = i2cdev.I2C(PORT_I2C)
-    i2c_line.set_timeout(I2C_TIMEOUT)
-
-    # Revolution - log
-    revolution_log = revolution.All_telemetry_logger(uav_talk,
-                                                     REV_LOG_UPDATE_RATE)
-    revolution_log.setup_all()
-
-    # Revolution - servo
-    revolution_servo = revolution.Servo_control_client(uav_talk,
-                                                       REV_SERVO_CHANNEL,
-                                                       REV_SERVO_MIN,
-                                                       REV_SERVO_MAX,
-                                                       REV_SERVO_DEG,)
-
-    # Revolution - buzzer
-    # -------------------------------------------------------------<==
-    # TODO: write module for buzzer
-    # -------------------------------------------------------------<==
-
-    # GSM
-    # -------------------------------------------------------------<==
-    # TODO: write module for GSM
-    # -------------------------------------------------------------<==
-
-    # TSL2561
-    pi_tsl2561 = tsl2561.Tsl2561_control_client()
-    pi_tsl2561.setup()
-
-    # Pi - ADS1115
-    pi_ads1115 = ads1115.Ads1115_control_client(i2c_line)
-    ads1115.setup()
-
-    # ================================================================
-    # First data block
-    # ================================================================
+    #    elif (State == STATE["init"]):
