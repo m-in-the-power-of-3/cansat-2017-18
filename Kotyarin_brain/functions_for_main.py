@@ -99,6 +99,40 @@ def init_all():
         raise FuseError("Init Fuse error")
 
 
+def first_data(revolution_log, ads1115, tsl2561):
+    voltage = ads1115.read_pins_voltage()
+
+    lux = tsl2561.get_lux()
+
+    pressure = revolution_log.get_data(revolution.DATA_TYPE["pressure"])
+    accel = revolution_log.get_data(revolution.DATA_TYPE["accel"])
+    gyro = revolution_log.get_data(revolution.DATA_TYPE["gyro"])
+    velocity = revolution_log.get_data(revolution.DATA_TYPE["velocity"])
+    mag = revolution_log.get_data(revolution.DATA_TYPE["mag"])
+
+    sms_text_list = ["Pressure: " + str(pressure),
+                     "Voltage 0: " + str(voltage[0]),
+                     "Voltage 1: " + str(voltage[1]),
+                     "Voltage 2: " + str(voltage[2]),
+                     "Voltage 3: " + str(voltage[3])]
+    # -------------------------------------------------------------<==
+    # TODO: Make first data list
+    # -------------------------------------------------------------<==
+    # -------------------------------------------------------------<==
+    # TODO: Make sms module
+    # -------------------------------------------------------------<==
+    return 0
+
+
+def pressure_now(revolution_log):
+    pressure = revolution_log.get_data()
+    if ((pressure < PRESSURE_MIN) &
+        (pressure > PRESSURE_MAX)):
+        return revolution.PRESSURE_NOW
+    else:
+        raise RevolutionError("Error with pressure value")
+
+
 def deb_print(str):
     try:
         print str
