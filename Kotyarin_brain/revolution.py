@@ -1,12 +1,11 @@
-import serial
-# import math
-
 from librepilot.uavtalk.uavobject import *
 from librepilot.uavtalk.uavtalk import *
 from librepilot.uavtalk.objectManager import *
 from librepilot.uavtalk.connectionManager import *
 
 DEFINITIONS_PATH = "/home/pi/Kotyarin_brain/librepilot/uavobject-synthetics"
+
+DATA_TYPE = {"pressure": 1, "accel": 2, "gyro": 3, "velocity": 4, "mag": 5}
 
 
 class Uavtalk():
@@ -47,6 +46,12 @@ class All_telemetry_logger():
         self.telemetry_log_mag = open('telemetry_log/mag.txt', 'a')
         self.update_period = period
         self._setup_update()
+        self.pressure = 0
+        self.accel = 0
+        self.attitude = 0
+        self.gyro = 0
+        self.velocity = 0
+        self.mag = 0
 
     def setup_all(self):
         self.setup_log_head()
@@ -86,41 +91,73 @@ class All_telemetry_logger():
         self.ATL_uavtalk.objMan.MagSensor.metadata.updated()
 
     def setup_observer(self):
-        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.AccelState, self, "_log_to_file_acc")
-        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.AttitudeState, self, "_log_to_file_att")
-        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.GyroState, self, "_log_to_file_gyr")
-        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.VelocityState, self, "_log_to_file_vel")
-        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.MagSensor, self, "_log_to_file_mag")
+        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.AccelState, self, "method_acc")
+        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.AttitudeState, self, "method_att")
+        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.GyroState, self, "method_gyr")
+        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.VelocityState, self, "method_vel")
+        self.ATL_uavtalk.objMan.regObjectObserver(self.ATL_uavtalk.objMan.MagSensor, self, "method_mag")
 
-    def _log_to_file_acc(self, args):
+    def method_acc(self, args):
+        self.accel = [self.ATL_uavtalk.objMan.AccelState.x.value,
+                      self.ATL_uavtalk.objMan.AccelState.y.value,
+                      self.ATL_uavtalk.objMan.AccelState.z.value]
+
         self.telemetry_log_acc.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.AccelState.x.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AccelState.y.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AccelState.z.value)+ "\n")
 
-    def _log_to_file_att(self, args):
+    def method_att(self, args):
+        self.attitude = [self.ATL_uavtalk.objMan.AttitudeState.Roll.value,
+                         self.ATL_uavtalk.objMan.AttitudeState.Pitch.value,
+                         self.ATL_uavtalk.objMan.AttitudeState.Yaw.value]
+
         self.telemetry_log_att.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.AttitudeState.Roll.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AttitudeState.Pitch.value) + "," +
                                      str(self.ATL_uavtalk.objMan.AttitudeState.Yaw.value) + "\n")
     
-    def _log_to_file_gyr(self, args):
+    def method_gyr(self, args):
+        self.gyro = [self.ATL_uavtalk.objMan.GyroState.x.value,
+                     self.ATL_uavtalk.objMan.GyroState.y.value,
+                     self.ATL_uavtalk.objMan.GyroState.z.value]
+
         self.telemetry_log_gyr.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.GyroState.x.value) + "," +
                                      str(self.ATL_uavtalk.objMan.GyroState.y.value) + "," +
                                      str(self.ATL_uavtalk.objMan.GyroState.z.value) + "\n")
 
-    def _log_to_file_vel(self, args):
+    def method_vel(self, args):
+        self.velocity = [self.ATL_uavtalk.objMan.VelocityState.North.value,
+                         self.ATL_uavtalk.objMan.VelocityState.East.value,
+                         self.ATL_uavtalk.objMan.VelocityState.Down.value]
+
         self.telemetry_log_vel.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.VelocityState.North.value) + "," +
                                      str(self.ATL_uavtalk.objMan.VelocityState.East.value) + "," +
                                      str(self.ATL_uavtalk.objMan.VelocityState.Down.value) + "\n")
     
-    def _log_to_file_mag(self, args):
+    def method_mag(self, args):
+        self.mag = [self.ATL_uavtalk.objMan.MagSensor.x.value,
+                    self.ATL_uavtalk.objMan.MagSensor.y.value,
+                    self.ATL_uavtalk.objMan.MagSensor.z.value]
+
         self.telemetry_log_mag.write(str(time.time()) + "," +
                                      str(self.ATL_uavtalk.objMan.MagSensor.x.value) + "," +
                                      str(self.ATL_uavtalk.objMan.MagSensor.y.value) + "," +
-                                     str(self.ATL_uavtalk.objMan.MagSensor.z.value) + "\n")     
+                                     str(self.ATL_uavtalk.objMan.MagSensor.z.value) + "\n")
+
+    def get_data(self, data_type):
+        if (data_type == DATA_TYPE["press"]):
+            return self.pressure
+        elif (data_type == DATA_TYPE["pressure"]):
+            return self.accel
+        elif (data_type == DATA_TYPE["gyro"]):
+            return self.gyro        
+        elif (data_type == DATA_TYPE["velocity"]):
+            return self.velocity
+        elif (data_type == DATA_TYPE["mag"]):
+            return self.mag
 
     def close(self):
         self.telemetry_log_acc.close()
@@ -159,4 +196,3 @@ class Servo_control_client():
         if (position_time <= self.__max) and (position_time >= self.__min):
             self.SCC_uavtalk.objMan.ActuatorSettings.ChannelNeutral.value[self.channel] = position_time
             self.SCC_uavtalk.objMan.ActuatorSettings.updated()
-
