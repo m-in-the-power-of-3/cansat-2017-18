@@ -4,7 +4,7 @@ import time
 FUSE_PIN = 7
 
 
-class fuse_control_client():
+class Fuse_control_client():
     def __init__(self, pin_=FUSE_PIN):
         self.pin = pin_
 
