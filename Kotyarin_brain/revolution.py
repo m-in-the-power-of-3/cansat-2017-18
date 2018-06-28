@@ -5,7 +5,7 @@ from librepilot.uavtalk.connectionManager import *
 
 DEFINITIONS_PATH = "/home/pi/Kotyarin_brain/librepilot/uavobject-synthetics"
 
-DATA_TYPE = {"pressure": 1, "accel": 2, "gyro": 3, "velocity": 4, "mag": 5}
+DATA_TYPE = {"pressure": 1, "accel": 2}
 
 
 class Uavtalk():
@@ -150,14 +150,8 @@ class All_telemetry_logger():
     def get_data(self, data_type):
         if (data_type == DATA_TYPE["press"]):
             return self.pressure
-        elif (data_type == DATA_TYPE["pressure"]):
+        elif (data_type == DATA_TYPE["accel"]):
             return self.accel
-        elif (data_type == DATA_TYPE["gyro"]):
-            return self.gyro        
-        elif (data_type == DATA_TYPE["velocity"]):
-            return self.velocity
-        elif (data_type == DATA_TYPE["mag"]):
-            return self.mag
 
     def close(self):
         self.telemetry_log_acc.close()
