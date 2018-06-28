@@ -34,6 +34,7 @@ import objectManager
 from librepilot.uavtalk import flighttelemetrystats
 import uavobject
 
+TRY_NUM = 10
 
 class ConnectionManager(object):
     
@@ -48,6 +49,7 @@ class ConnectionManager(object):
         self.statusFieldClss = flighttelemetrystats.StatusField
 
     def connect(self):
+        try_num = 0
         timeout = True
         logging.debug("Connecting")
         startTime = time.clock()
@@ -65,6 +67,9 @@ class ConnectionManager(object):
                 else:
                     pass
             except objectManager.TimeoutException:
+                try_num += 1
+                if (try_num > TRY_NUM):
+                    raise Exception("Connection fail")
                 timeout = True
                 self.connected = False
                 logging.warning("Connecting TO")
