@@ -119,7 +119,7 @@ class Tsl2561_control_client ():
     def _write_reg(self, reg, val):
         data = [CMD_TEMPLATE | reg]
         data.append(val)
-        i2c_line.write(data)
+        self.i2c_line.write(data)
 
     def _read_raw_lux(self):
         self.i2c_line.set_addr(self.i2c_addr)
