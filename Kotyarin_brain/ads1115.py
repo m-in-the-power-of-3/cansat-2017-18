@@ -157,6 +157,9 @@ class Ads1115_control_client ():
 
         return pins
 
+    def close(self):
+        self.telemetry_log_vol.close()
+
 
 if __name__ == '__main__':
     i2c_line = I2C(0)
