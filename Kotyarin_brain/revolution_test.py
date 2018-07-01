@@ -2,6 +2,7 @@ import logging
 import serial
 import traceback
 import sys
+import serial
 
 from librepilot.uavtalk.uavobject import *
 from librepilot.uavtalk.uavtalk import *
@@ -19,9 +20,10 @@ if __name__ == '__main__':
         sys.exit(2)
 
     port = sys.argv[1]
+    uart = serial.Serial(port, 57600, timeout=1)
 
     UavT = revolution.Uavtalk()
-    UavT.setup(port)
+    UavT.setup(uart)
 
     Telemetry_log = revolution.All_telemetry_logger(UavT,50)
     Telemetry_log.setup_all()
@@ -31,7 +33,7 @@ if __name__ == '__main__':
     i = 1000
     while True:
         i = i + 50
-	if (i > 2400):
+        if (i > 2400):
            i = 1000
         Servo.rotation(i)
         #try:
