@@ -1,4 +1,5 @@
 import serial
+import time
 
 import i2cdev
 
@@ -9,6 +10,7 @@ import fuse
 import gsm
 import trigger
 import buzzer
+import bmp180
 
 from settings import *
 from errors import *
@@ -20,12 +22,20 @@ i2c_line = 0
 uav_talk = 0
 revolution_log = 0
 revolution_servo = 0
+pi_bmp180 = 0
 pi_tsl2561 = 0
 pi_ads1115 = 0
 pi_fuse = 0
 pi_buzzer = 0
 pi_gsm = 0
 pi_trigger = 0
+
+# Data
+pressure_at_start = 0
+data_lux = -1
+lux_max = -1
+lux_min = 65537
+voltage_list = [0]
 
 
 # ================================================================
@@ -110,13 +120,20 @@ def init_buzzer():
         raise BuzzerError("Init Buzzer error")
 
 
-# -------------------------------------------------------------<==
-# TODO: write module for GSM
-# -------------------------------------------------------------<==
+# BMP180
+def init_bmp180():
+    global pi_bmp180
+    global i2c_line
+
+    try:
+        pi_bmp180 = bmp180.Bmp180_control_client(i2c_line)
+        pi_bmp180.setup()
+    except Exception:
+        raise BMP180Error("Init BMP180 error")
+
 # GSM
 def init_gsm():
     global pi_gsm
-    # Added only for test
     pi_gsm = gsm.Gsm_control_client()
 
 
@@ -180,10 +197,9 @@ def init_all():
 
     # init_revolution()
 
+    init_bmp180()
     init_tsl1561()
     init_ads1115()
-
-
 
 
 # ================================================================
@@ -221,6 +237,13 @@ def deinit_gsm():
     print "gsm deinit"
 
 
+# BMP180
+def deinit_bmp180():
+    global pi_bmp180
+
+    if not (pi_bmp180 == 0):
+        pi_bmp180.close()
+
 # TSL2561
 def deinit_tsl1561():
     global pi_tsl2561
@@ -249,6 +272,8 @@ def deinit_all():
     deinit_tsl1561()
     deinit_ads1115()
 
+    deinit_bmp180()
+
 
 # ================================================================
 # Data
@@ -257,14 +282,26 @@ def deinit_all():
 def get_pressure():
     try:
         global revolution_log
-        pressure = revolution_log.get_data("press")
-        if ((pressure > PRESSURE_MIN) &
-            (pressure < PRESSURE_MAX)):
-            return pressure
-        else:
-            raise ValueError()
+        global pi_bmp180
+
+        #if (not (revolution_log == 0)):
+        #    pressure = revolution_log.get_data("press")
+        #    if ((pressure > PRESSURE_MIN) and
+        #        (pressure < PRESSURE_MAX)):
+        #        return pressure
+        #    else:
+        #        raise ValueError()
+# <<------------------------------------------------------------------Rewritten. Use BMP180
+        if (not (pi_bmp180 == 0)):
+            pressure = pi_bmp180.get_pressure()
+            if ((pressure > PRESSURE_MIN) and
+                (pressure < PRESSURE_MAX)):
+                return pressure
+            else:
+                raise ValueError()
     except Exception():
-        raise RevolutionError("Error with pressure value")
+        #raise RevolutionError("Error with pressure value")
+        raise BMP180Error("Error with pressure value")
 
 
 # Voltage
@@ -327,11 +364,114 @@ def check_trigger():
         raise TriggerError("Trigger Error")
 
 
+def check_lux():
+    global data_lux
+    global lux_min
+    global lux_max
+
+    if not ((data_lux == -1) or (lux_min == 65537) or (lux_max == -1)):
+        level = LUX_LEVEL_K * (lux_max - lux_min)
+        level = level + lux_min
+        if (data_lux > level):
+            return True
+    return False
+
+
+def count_min_lux():
+    global data_lux
+    global lux_min
+    global lux_max
+
+    if ((not (data_lux == -1)) and (data_lux < lux_min)):
+        lux_min = data_lux
+
+
+def count_max_lux():
+    global data_lux
+    global lux_max
+
+    if ((not (data_lux == -1)) and (data_lux > lux_max)):
+        lux_max = data_lux
+
+
+def check_voltage(voltage):
+    if (voltage.len() == 4):
+        voltage_1 = voltage[0]
+        voltage_2 = (voltage[1] * K23) - voltage_1
+        voltage_3 = (voltage[2] * K34) - (voltage[1] * K23)
+        voltage_4 = (voltage[3] * K4) - (voltage[2] * K34)
+
+        if ((voltage_1 < VOLTAGE_MIN) or
+            (voltage_2 < VOLTAGE_MIN) or
+            (voltage_3 < VOLTAGE_MIN) or
+            (voltage_4 < VOLTAGE_MIN)):
+
+            raise BatteryError()
+
+
+def check_data():
+    global data_lux
+
+    if (not (pi_tsl2561 == 0)):
+        try:
+            data_lux = get_lux()
+        except TSL2561Error:
+            data_lux = -1
+
+    if (not (pi_bmp180 == 0)):
+        try:
+            pi_bmp180.update_data()
+        except Exception:
+            raise BMP180Error("Update data from BMP180 error")
+
+    if (not (pi_ads1115 == 0)):
+        try:
+            voltage_list == get_voltage()
+        except ADS1115Error:
+            deb_print("Ads1115 value error")
+        else:
+            try:
+                print "voltage off"
+                # check_voltage(voltage_list)
+            except BatteryError:
+                raise
+
+
 def buzzer_control(mode):
     if mode:
         pi_buzzer.on()
     else:
         pi_buzzer.off()
+
+
+def check_height(height_action):
+    global pressure_at_start
+
+    try:
+        pressure = get_pressure()
+        x = pressure / pressure_at_start
+        height = 44330 * (1.0 - pow(x, 0.1903))
+    except:
+        pass
+    height = input()
+    if (height_action >= height):
+        return True
+    else:
+        return False
+
+
+def save_pressure_at_start():
+    global pressure_at_start
+
+    pressure_at_start = get_pressure()
+
+def open_parachute():
+    global pi_fuse
+
+    pi_fuse.start()
+    time.sleep(FUSE_TIMEOUT)
+    pi_fuse.stop()
+
 # ================================================================
 # Debug
 # ================================================================
