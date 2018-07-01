@@ -11,6 +11,7 @@ class Fuse_control_client():
     def setup(self):
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(self.pin, GPIO.OUT)
+        self.stop()
 
     def start(self):
         GPIO.output(self.pin, True)
@@ -20,7 +21,7 @@ class Fuse_control_client():
 
 
 if __name__ == '__main__':
-    fuse = fuse_control_client()
+    fuse = Fuse_control_client()
     fuse.setup()
     while True:
         com = input()
