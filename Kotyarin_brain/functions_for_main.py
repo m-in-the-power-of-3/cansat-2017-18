@@ -1,5 +1,7 @@
 import serial
 import time
+import socket
+import os
 
 import i2cdev
 
@@ -29,13 +31,20 @@ pi_fuse = 0
 pi_buzzer = 0
 pi_gsm = 0
 pi_trigger = 0
+TRTCS_link = 0
 
 # Data
 pressure_at_start = 0
-data_lux = -1
+height = 0
+data_lux = 0
 lux_max = -1
 lux_min = 65537
-voltage_list = [0]
+voltage_list = [0, 0, 0, 0]
+gyro = [0, 0, 0]
+accel = [0, 0, 0]
+pressure = 0
+temperature = 0
+time_at_start = 0
 
 
 # ================================================================
@@ -102,6 +111,7 @@ def init_revolution():
                                                            REV_SERVO_MIN,
                                                            REV_SERVO_MAX,
                                                            REV_SERVO_DEG,)
+        revolution_servo.rotation(SERVO_STATR_POSITION)
     except Exception:
         raise RevolutionError("Init servo and log error")
 
@@ -130,6 +140,7 @@ def init_bmp180():
         pi_bmp180.setup()
     except Exception:
         raise BMP180Error("Init BMP180 error")
+
 
 # GSM
 def init_gsm():
@@ -184,6 +195,26 @@ def init_trigger():
 
 
 # ----------------------------------------------------------------
+# Link
+# ----------------------------------------------------------------
+def init_TRTCS_link():
+    global TRTCS_link
+    print "TRTCS"
+
+    TRTCS_link = socket.socket(socket.AF_INET,
+                               socket.SOCK_DGRAM)
+    print TRTCS_link
+
+
+def internet_init():
+    os.system(r'./internet_on.sh')
+
+
+def deinternet_init():
+    os.system(r'./internet_off.sh')
+
+
+# ----------------------------------------------------------------
 # Init all
 # ----------------------------------------------------------------
 def init_all():
@@ -195,11 +226,12 @@ def init_all():
     init_gsm()
     init_buzzer()
 
-    # init_revolution()
+    init_revolution()
 
     init_bmp180()
     init_tsl1561()
     init_ads1115()
+    init_TRTCS_link()
 
 
 # ================================================================
@@ -244,6 +276,7 @@ def deinit_bmp180():
     if not (pi_bmp180 == 0):
         pi_bmp180.close()
 
+
 # TSL2561
 def deinit_tsl1561():
     global pi_tsl2561
@@ -261,7 +294,16 @@ def deinit_ads1115():
 
 
 # ----------------------------------------------------------------
-# Init all
+# Link
+# ----------------------------------------------------------------
+def deinit_TRTCS_link():
+    global TRTCS_link
+    if not(TRTCS_link == 0):
+        TRTCS_link.close()
+
+
+# ----------------------------------------------------------------
+# Deinit all
 # ----------------------------------------------------------------
 def deinit_all():
     deinit_gsm()
@@ -273,6 +315,7 @@ def deinit_all():
     deinit_ads1115()
 
     deinit_bmp180()
+    deinit_TRTCS_link()
 
 
 # ================================================================
@@ -301,7 +344,7 @@ def get_pressure():
                 raise ValueError()
     except Exception():
         #raise RevolutionError("Error with pressure value")
-        raise BMP180Error("Error with pressure value")
+        pass
 
 
 # Voltage
@@ -334,15 +377,33 @@ def get_accel():
         raise RevolutionError("Error with accel value")
 
 
+# Gyro
+def get_gyro():
+    try:
+        global revolution_log
+        gyro = revolution_log.get_data(revolution.DATA_TYPE["gyro"])
+        return gyro
+    except Exception():
+        raise RevolutionError("Error with accel value")
+
+
 # ================================================================
 # Link
 # ================================================================
 def sms(text):
     try:
         global pi_gsm
-        pi_gsm.sms_send(text)
+        print text
+        #pi_gsm.sms_send(text)
     except Exception:
         raise GsmError("Send SMS error")
+
+
+def send_to_TRTCS(message):
+    global TRTCS_link
+    if not(TRTCS_link == 0):
+        print message
+        TRTCS_link.sendto(message, (IP, PORT))
 
 
 # ================================================================
@@ -369,7 +430,7 @@ def check_lux():
     global lux_min
     global lux_max
 
-    if not ((data_lux == -1) or (lux_min == 65537) or (lux_max == -1)):
+    if not ((data_lux == 0) or (lux_min == 65537) or (lux_max == -1)):
         level = LUX_LEVEL_K * (lux_max - lux_min)
         level = level + lux_min
         if (data_lux > level):
@@ -382,7 +443,7 @@ def count_min_lux():
     global lux_min
     global lux_max
 
-    if ((not (data_lux == -1)) and (data_lux < lux_min)):
+    if ((not (data_lux == 0)) and (data_lux < lux_min)):
         lux_min = data_lux
 
 
@@ -390,51 +451,87 @@ def count_max_lux():
     global data_lux
     global lux_max
 
-    if ((not (data_lux == -1)) and (data_lux > lux_max)):
+    if ((not (data_lux == 0)) and (data_lux > lux_max)):
         lux_max = data_lux
 
 
+def count_voltage(voltage):
+    voltage_1 = voltage[0]
+    voltage_2 = (voltage[1] * K23) - voltage_1
+    voltage_3 = (voltage[2] * K34) - (voltage[1] * K23)
+    voltage_4 = (voltage[3] * K4) - (voltage[2] * K34)
+    return [voltage_1, voltage_2, voltage_3, voltage_4]
+
+
 def check_voltage(voltage):
-    if (voltage.len() == 4):
-        voltage_1 = voltage[0]
-        voltage_2 = (voltage[1] * K23) - voltage_1
-        voltage_3 = (voltage[2] * K34) - (voltage[1] * K23)
-        voltage_4 = (voltage[3] * K4) - (voltage[2] * K34)
-
-        if ((voltage_1 < VOLTAGE_MIN) or
-            (voltage_2 < VOLTAGE_MIN) or
-            (voltage_3 < VOLTAGE_MIN) or
-            (voltage_4 < VOLTAGE_MIN)):
-
+    if (len(raw_voltage) == 4):
+        if ((voltage[0] < VOLTAGE_MIN) or
+            (voltage[1] < VOLTAGE_MIN) or
+            (voltage[2] < VOLTAGE_MIN) or
+            (voltage[3] < VOLTAGE_MIN)):
             raise BatteryError()
 
 
 def check_data():
     global data_lux
+    global gyro
+    global accel
+    global voltage_list
+    global pressure
+    global temperature
 
     if (not (pi_tsl2561 == 0)):
         try:
             data_lux = get_lux()
         except TSL2561Error:
-            data_lux = -1
+            data_lux = 0
 
     if (not (pi_bmp180 == 0)):
         try:
+            print "bmp"
             pi_bmp180.update_data()
+            pressure = pi_bmp180.get_pressure()
+            temperature = pi_bmp180.get_temperature()
         except Exception:
             raise BMP180Error("Update data from BMP180 error")
 
     if (not (pi_ads1115 == 0)):
         try:
-            voltage_list == get_voltage()
+            raw_voltage_list == get_voltage()
         except ADS1115Error:
             deb_print("Ads1115 value error")
         else:
             try:
                 print "voltage off"
+                voltage_list = count_voltage(raw_voltage_list)
                 # check_voltage(voltage_list)
             except BatteryError:
                 raise
+
+    if (not (revolution_log == 0)):
+        try:
+            gyro = get_gyro()
+            accel = get_accel()
+        except RevolutionError:
+            raise BMP180Error("Update data from Revolution error")
+    try:
+        packet = (str(time.time() - time_at_start) + "," +
+                  str(accel[0]) + "," +
+                  str(accel[1]) + "," +
+                  str(accel[2]) + "," +
+                  str(gyro[0]) + "," +
+                  str(gyro[1]) + "," +
+                  str(gyro[2]) + "," +
+                  str(data_lux) + "," +
+                  str(voltage_list[0]) + "," +
+                  str(voltage_list[1]) + "," +
+                  str(voltage_list[2]) + "," +
+                  str(voltage_list[3]) + "," +
+                  str(pressure) + "," + str(temperature))
+        print"packet"
+        send_to_TRTCS(packet)
+    except Exception:
+        pass
 
 
 def buzzer_control(mode):
@@ -446,6 +543,7 @@ def buzzer_control(mode):
 
 def check_height(height_action):
     global pressure_at_start
+    global height
 
     try:
         pressure = get_pressure()
@@ -453,7 +551,7 @@ def check_height(height_action):
         height = 44330 * (1.0 - pow(x, 0.1903))
     except:
         pass
-    height = input()
+
     if (height_action >= height):
         return True
     else:
@@ -465,7 +563,13 @@ def save_pressure_at_start():
 
     pressure_at_start = get_pressure()
 
+
 def open_parachute():
+    global revolution_servo
+    revolution_servo.rotation(SERVO_OPEN_PARACHUTE_BLOCK)
+
+
+def open_copter():
     global pi_fuse
 
     pi_fuse.start()
