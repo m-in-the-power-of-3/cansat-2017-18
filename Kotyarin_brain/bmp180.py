@@ -3,7 +3,7 @@ from i2cdev import *
 import time
 
 
-DEV_ADRESS = 0x77
+DEV_ADDRESS = 0x77
 MODE_ADRESS = 0xF4
 ADRESS_TO_READ = 0xF6
 
@@ -27,7 +27,7 @@ TIME_TEMPERATURE = 0.005
 TIME_PRESSURE = 0.008
 PRESSURE_COD = 0x74
 
-OSS = 1
+OSS = 0x01
 # look at the table
 # Temperature | OSS = 00 | CSO = 1 | 01110 | 00101110 = 0x2E | 4,5 mc  | 3 mA | 0,5 C
 # Pressure    | OSS = 00 | CSO = 1 | 10100 | 00110100 = 0x34 | 4,5 mc  | 3 mA | 0,6 GPa
@@ -50,7 +50,7 @@ TEST_MD = 2868
 
 
 class Bmp180_control_client ():
-    def __init__(self, i2c, dev_addr=DEV_ADRESS, temp_cod=TEMPERATURE_COD,
+    def __init__(self, i2c, dev_addr=DEV_ADDRESS, temp_cod=TEMPERATURE_COD,
                  temp_time=TIME_TEMPERATURE, press_cod=PRESSURE_COD,
                  press_time=TIME_PRESSURE, oss_=OSS):
         self.oss = oss_
@@ -61,8 +61,8 @@ class Bmp180_control_client ():
         self.i2c_line = i2c
         self.i2c_addr = dev_addr
         self.calibration_values = {}
-        self.temperature
-        self.temperature
+        self.pressure = 0
+        self.temperature = 0
 
     def setup(self):
         self.i2c_line.set_addr(self.i2c_addr)
@@ -76,6 +76,8 @@ class Bmp180_control_client ():
         self.i2c_line.write([value_adress])
         value = self.i2c_line.read(2)
         self.calibration_values[value_name] = (value[1] << 8) + value[0]
+        if (self.calibration_values[value_name] > 32767):
+            self.calibration_values[value_name] -= 65535
 
     def _read_calibration_values(self):
         self.i2c_line.set_addr(self.i2c_addr)
@@ -108,7 +110,8 @@ class Bmp180_control_client ():
         self.i2c_line.write([ADRESS_TO_READ])
         value = value = self.i2c_line.read(3)
         raw_pressure = (value[0] << 16) + (value[1] << 8) + value[2]
-        raw_pressure = self.raw_pressure >> (8 - self.oss)
+        raw_pressure = raw_pressure >> (8 - self.oss)
+        print raw_pressure
         return raw_pressure
 
     def read_raw_temperature(self):
@@ -117,6 +120,7 @@ class Bmp180_control_client ():
         self.i2c_line.write([ADRESS_TO_READ])
         value = value = self.i2c_line.read(2)
         raw_temperature = (value[0] << 8) + value[1]
+        print raw_temperature
         return raw_temperature
 
     def count_B5(self, raw_temperature):
@@ -148,13 +152,15 @@ class Bmp180_control_client ():
         X2 = (-7357 * P) >> 16
         self.pressure = P + ((X1 + X2 + 3791) >> 4)
 
-    def count_temperature(B5):
+    def count_temperature(self, B5):
         self.temperature = (B5 + 8) / 16  # ((B5 + 8) >> 4) / 10.0
 
-    def update_data():
+    def update_data(self):
         self.i2c_line.set_addr(self.i2c_addr)
-        raw_temperature = read_raw_pressure()
-        raw_pressure = read_raw_temperature()
+        raw_temperature = self.read_raw_pressure()
+        raw_pressure = self.read_raw_temperature()
+        print raw_pressure
+        print raw_temperature
 
         B5 = self.count_B5(raw_temperature)
         self.count_pressure(B5, raw_pressure)
@@ -164,10 +170,10 @@ class Bmp180_control_client ():
                                         str(self.pressure) + "," +
                                         str(self.temperature) + "\n")
 
-    def pressure(self):
+    def get_pressure(self):
         return self.pressure
 
-    def temperature(self):
+    def get_temperature(self):
         return self.temperature
 
     def close(self):
@@ -177,12 +183,13 @@ class Bmp180_control_client ():
 if __name__ == "__main__":
     i2c_line = I2C(0)
     i2c_line.set_addr(DEV_ADDRESS)
-    i2c_line.set_timeout(50)
-    bmp180 = Bmp180_control_client(i2c)
+    i2c_line.set_timeout(10)
+    bmp180 = Bmp180_control_client(i2c_line)
     bmp180.setup()
     while True:
         bmp180.update_data()
-        press = tsl2561.get_pressure()
-        temp = tsl2561.get_temperature()
+        press = bmp180.get_pressure()
+        temp = bmp180.get_temperature()
         print press
         print temp
+        time.sleep(0.1)
