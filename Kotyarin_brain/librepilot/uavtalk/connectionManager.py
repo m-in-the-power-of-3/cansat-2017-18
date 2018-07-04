@@ -34,7 +34,7 @@ import objectManager
 from librepilot.uavtalk import flighttelemetrystats
 import uavobject
 
-TRY_NUM = 10
+TRY_NUM = 30
 
 class ConnectionManager(object):
     
