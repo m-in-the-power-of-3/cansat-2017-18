@@ -37,7 +37,7 @@ OSS = 0x01
 
 # Only for test
 TEST_AC1 = 408
-TEST_AC2 = -71
+TEST_AC2 = -72
 TEST_AC3 = -14383
 TEST_AC4 = 32741
 TEST_AC5 = 32757
@@ -72,55 +72,53 @@ class Bmp180_control_client ():
 
         self._read_calibration_values()
 
-    def _read_calibration_value(self, value_adress, value_name):
+    def _read_calibration_value(self, value_adress, value_name, signed):
         self.i2c_line.write([value_adress])
         value = self.i2c_line.read(2)
-        self.calibration_values[value_name] = (value[1] << 8) + value[0]
-        if (self.calibration_values[value_name] > 32767):
-            self.calibration_values[value_name] -= 65535
+        self.calibration_values[value_name] = (value[0] << 8) + value[1]
+        if (self.calibration_values[value_name] > 32767) and signed:
+            self.calibration_values[value_name] -= 65536
 
     def _read_calibration_values(self):
         self.i2c_line.set_addr(self.i2c_addr)
         # AC1
-        self._read_calibration_value(ADRESS_AC1, "AC1")
+        self._read_calibration_value(ADRESS_AC1, "AC1", True)
         # AC2
-        self._read_calibration_value(ADRESS_AC2, "AC2")
+        self._read_calibration_value(ADRESS_AC2, "AC2", True)
         # AC3
-        self._read_calibration_value(ADRESS_AC3, "AC3")
+        self._read_calibration_value(ADRESS_AC3, "AC3", True)
         # AC4
-        self._read_calibration_value(ADRESS_AC4, "AC4")
+        self._read_calibration_value(ADRESS_AC4, "AC4", False)
         # AC5
-        self._read_calibration_value(ADRESS_AC5, "AC5")
+        self._read_calibration_value(ADRESS_AC5, "AC5", False)
         # AC6
-        self._read_calibration_value(ADRESS_AC6, "AC6")
+        self._read_calibration_value(ADRESS_AC6, "AC6", False)
         # B1
-        self._read_calibration_value(ADRESS_B1, "B1")
+        self._read_calibration_value(ADRESS_B1, "B1", True)
         # B2
-        self._read_calibration_value(ADRESS_B2, "B2")
+        self._read_calibration_value(ADRESS_B2, "B2", True)
         # MB
-        self._read_calibration_value(ADRESS_MB, "MB")
+        self._read_calibration_value(ADRESS_MB, "MB", True)
         # MC
-        self._read_calibration_value(ADRESS_MC, "MC")
+        self._read_calibration_value(ADRESS_MC, "MC", True)
         # MD
-        self._read_calibration_value(ADRESS_MD, "MD")
+        self._read_calibration_value(ADRESS_MD, "MD", True)
 
     def read_raw_pressure(self):
         self.i2c_line.write([MODE_ADRESS, self.pressure_cod])
         time.sleep(self.pressure_time)
         self.i2c_line.write([ADRESS_TO_READ])
-        value = value = self.i2c_line.read(3)
+        value = self.i2c_line.read(3)
         raw_pressure = (value[0] << 16) + (value[1] << 8) + value[2]
         raw_pressure = raw_pressure >> (8 - self.oss)
-        print raw_pressure
         return raw_pressure
 
     def read_raw_temperature(self):
         self.i2c_line.write([MODE_ADRESS, self.temperature_cod])
         time.sleep(self.temperature_time)
         self.i2c_line.write([ADRESS_TO_READ])
-        value = value = self.i2c_line.read(2)
+        value = self.i2c_line.read(2)
         raw_temperature = (value[0] << 8) + value[1]
-        print raw_temperature
         return raw_temperature
 
     def count_B5(self, raw_temperature):
@@ -130,6 +128,7 @@ class Bmp180_control_client ():
 
     def count_pressure(self, B5, raw_pressure):
         B6 = B5 - 4000
+
         X1 = (self.calibration_values["B2"] * ((B6 * B6) >> 12)) >> 11
         X2 = (self.calibration_values["AC2"] * B6) >> 11
         X3 = X1 + X2
@@ -140,12 +139,13 @@ class Bmp180_control_client ():
         X3 = ((X1 + X2) + 2) >> 2
 
         B4 = (self.calibration_values["AC4"] * (X3 + 32768)) >> 15
-
         B7 = (raw_pressure - B3) * (50000 >> self.oss)
+
+        print B7
         if (B7 < 0x80000000):
             P = (B7 * 2) / B4
         else:
-            P = (B7 * 2) / B3  # P = (B7 // B4) * 2
+            P = (B7 / B4) * 2
 
         X1 = (P >> 8) * (P >> 8)
         X1 = (X1 * 3038) >> 16
@@ -153,14 +153,12 @@ class Bmp180_control_client ():
         self.pressure = P + ((X1 + X2 + 3791) >> 4)
 
     def count_temperature(self, B5):
-        self.temperature = (B5 + 8) / 16  # ((B5 + 8) >> 4) / 10.0
+        self.temperature = (B5 + 8) >> 4
 
     def update_data(self):
         self.i2c_line.set_addr(self.i2c_addr)
-        raw_temperature = self.read_raw_pressure()
-        raw_pressure = self.read_raw_temperature()
-        print raw_pressure
-        print raw_temperature
+        raw_pressure = self.read_raw_pressure()
+        raw_temperature = self.read_raw_temperature()
 
         B5 = self.count_B5(raw_temperature)
         self.count_pressure(B5, raw_pressure)
@@ -190,6 +188,8 @@ if __name__ == "__main__":
         bmp180.update_data()
         press = bmp180.get_pressure()
         temp = bmp180.get_temperature()
+        print 'pressure:'
         print press
+        print 'temperature:'
         print temp
         time.sleep(0.1)
