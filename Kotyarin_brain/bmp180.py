@@ -141,7 +141,6 @@ class Bmp180_control_client ():
         B4 = (self.calibration_values["AC4"] * (X3 + 32768)) >> 15
         B7 = (raw_pressure - B3) * (50000 >> self.oss)
 
-        print B7
         if (B7 < 0x80000000):
             P = (B7 * 2) / B4
         else:
@@ -188,8 +187,8 @@ if __name__ == "__main__":
         bmp180.update_data()
         press = bmp180.get_pressure()
         temp = bmp180.get_temperature()
-        print 'pressure:'
-        print press
-        print 'temperature:'
-        print temp
+        print ('pressure:')
+        print (press)
+        print ('temperature:')
+        print (temp)
         time.sleep(0.1)
