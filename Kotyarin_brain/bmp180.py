@@ -24,10 +24,10 @@ ADRESS_MD = 0xBE
 TEMPERATURE_COD = 0x2E
 TIME_TEMPERATURE = 0.005
 
-TIME_PRESSURE = 0.008
-PRESSURE_COD = 0x74
+TIME_PRESSURE = 0.026
+PRESSURE_COD = 0xF4
 
-OSS = 0x01
+OSS = 0x3
 # look at the table
 # Temperature | OSS = 00 | CSO = 1 | 01110 | 00101110 = 0x2E | 4,5 mc  | 3 mA | 0,5 C
 # Pressure    | OSS = 00 | CSO = 1 | 10100 | 00110100 = 0x34 | 4,5 mc  | 3 mA | 0,6 GPa
@@ -66,9 +66,6 @@ class Bmp180_control_client ():
 
     def setup(self):
         self.i2c_line.set_addr(self.i2c_addr)
-
-        self.telemetry_log_bmp180 = open('telemetry_log/bmp180.txt', 'a')
-        self.telemetry_log_bmp180.write("Time,PRESSURE,TEMPERATURE\n")
 
         self._read_calibration_values()
 
@@ -123,7 +120,7 @@ class Bmp180_control_client ():
 
     def count_B5(self, raw_temperature):
         X1 = ((raw_temperature - self.calibration_values["AC6"]) * self.calibration_values["AC5"]) >> 15
-        X2 = (self.calibration_values["MC"] << 11) / (X1 + self.calibration_values["MD"])
+        X2 = (self.calibration_values["MC"] << 11) // (X1 + self.calibration_values["MD"])
         return X1 + X2
 
     def count_pressure(self, B5, raw_pressure):
@@ -133,7 +130,7 @@ class Bmp180_control_client ():
         X2 = (self.calibration_values["AC2"] * B6) >> 11
         X3 = X1 + X2
 
-        B3 = (((self.calibration_values["AC1"] * 4 + X3) << self.oss) + 2) / 4
+        B3 = (((self.calibration_values["AC1"] * 4 + X3) << self.oss) + 2) // 4
         X1 = (self.calibration_values["AC3"] * B6) >> 13
         X2 = (self.calibration_values["B1"] * ((B6 * B6) >> 12)) >> 16
         X3 = ((X1 + X2) + 2) >> 2
@@ -142,9 +139,9 @@ class Bmp180_control_client ():
         B7 = (raw_pressure - B3) * (50000 >> self.oss)
 
         if (B7 < 0x80000000):
-            P = (B7 * 2) / B4
+            P = (B7 * 2) // B4
         else:
-            P = (B7 / B4) * 2
+            P = (B7 // B4) * 2
 
         X1 = (P >> 8) * (P >> 8)
         X1 = (X1 * 3038) >> 16
@@ -163,18 +160,11 @@ class Bmp180_control_client ():
         self.count_pressure(B5, raw_pressure)
         self.count_temperature(B5)
 
-        self.telemetry_log_bmp180.write(str(time.time()) + "," +
-                                        str(self.pressure) + "," +
-                                        str(self.temperature) + "\n")
-
     def get_pressure(self):
         return self.pressure
 
     def get_temperature(self):
         return self.temperature
-
-    def close(self):
-        self.telemetry_log_bmp180.close()
 
 
 if __name__ == "__main__":

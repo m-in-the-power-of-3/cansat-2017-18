@@ -21,8 +21,9 @@ class Buzzer_control_client():
         GPIO.setup(self.pin, GPIO.OUT)
 
         self.thread = threading.Thread(target=self.pwm)
-        self.thread.daemon = False
+        self.thread.daemon = True
         self.lock_time = threading.Lock()
+        self.lock_stop_flag = threading.Lock()
 
         self.giv_value(0)
 
@@ -36,8 +37,11 @@ class Buzzer_control_client():
 
     def pwm(self):
         while True:
+            self.lock_stop_flag.acquire()
             if self.stop_flag:
+                self.lock_stop_flag.release()
                 return
+            self.lock_stop_flag.release()
 
             self.lock_time.acquire()
             if (self.time_high > 0):
@@ -65,12 +69,14 @@ class Buzzer_control_client():
         self.giv_value(OFF_VALUE)
 
     def stop(self):
+        self.lock_stop_flag.acquire()
         self.stop_flag = True
+        self.lock_stop_flag.release()
         self.thread.join()
 
 
 if __name__ == '__main__':
-    buz = buzzer_control_client()
+    buz = Buzzer_control_client()
     buz.setup()
     try:
         while True:

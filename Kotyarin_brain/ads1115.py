@@ -2,7 +2,7 @@
 from i2cdev import *
 import time
 
-DEV_ADDRESS = 0x48
+DEV_ADDRESS = 0x49
 # depends on ADDR sel level:
 # GND: 0x48
 # VDD: 0x49
@@ -60,8 +60,6 @@ class Ads1115_control_client ():
         self.config[2] = 0x03 | (dr << 5)
         self.k = self._count_k(PGA)
         self.time = self._count_time(dr) * 1.1
-        self.telemetry_log_vol = open('telemetry_log/vol.txt', 'a')
-        self.telemetry_log_vol.write("Time,vol_0,vol_1,vol_2,vol_3\n")
 
     def setup(self):
         self.i2c_line.set_addr(self.i2c_addr)
@@ -149,16 +147,8 @@ class Ads1115_control_client ():
         in_3 = self.read_voltage(0x07)
 
         pins = [in_0, in_1, in_2, in_3]
-        self.telemetry_log_vol.write(str(time.time()) + "," +
-                                     str(pins[0]) + "," +
-                                     str(pins[1]) + "," +
-                                     str(pins[2]) + "," +
-                                     str(pins[3]) + " \n")
 
         return pins
-
-    def close(self):
-        self.telemetry_log_vol.close()
 
 
 if __name__ == '__main__':
@@ -173,4 +163,4 @@ if __name__ == '__main__':
                str(round(in_vol[1], 2)) + " | " +
                str(round(in_vol[2], 2)) + " | " +
                str(round(in_vol[3], 2)))
-        print out
+        print (out)

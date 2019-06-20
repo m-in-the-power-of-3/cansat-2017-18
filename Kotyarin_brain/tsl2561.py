@@ -109,9 +109,6 @@ class Tsl2561_control_client ():
     def setup(self):
         self.i2c_line.set_addr(self.i2c_addr)
 
-        self.telemetry_log_lux = open('telemetry_log/lux.txt', 'a')
-        self.telemetry_log_lux.write("Time,LUX\n")
-
         self._write_reg(REG_CONTROL, 0x03)
         self._write_reg(REG_TIMING, 0x02 | self.gain)
         self._write_reg(REG_INTERRUPT, 0x00)
@@ -140,7 +137,7 @@ class Tsl2561_control_client ():
 
         ratio1 = 0
         if (channel_0 != 0):
-            ratio1 = (channel_1 << (RATIO_SCALE + 1)) / channel_0
+            ratio1 = (channel_1 << (RATIO_SCALE + 1)) // channel_0
 
         ratio = (ratio1 + 1) >> 1
 
@@ -203,12 +200,11 @@ class Tsl2561_control_client ():
 
         temp += (1 << (LUX_SCALE - 1))
         lux = temp >> LUX_SCALE
-        self.telemetry_log_lux.write(str(time.time()) + "," +
-                                     str(lux) + " \n")
+
         return lux
 
     def close(self):
-        self.telemetry_log_lux.close()
+        pass
 
 
 if __name__ == '__main__':
@@ -219,5 +215,5 @@ if __name__ == '__main__':
     tsl2561.setup()
     while True:
         lux = tsl2561.get_lux()
-        print lux
+        print (lux)
         time.sleep(0.5)

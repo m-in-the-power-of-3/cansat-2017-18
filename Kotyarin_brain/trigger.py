@@ -1,11 +1,11 @@
 import RPi.GPIO as GPIO
 import time
 
-FUSE_PIN = 24
+TRIGGER_PIN = 24
 
 
 class Trigger_control_client ():
-    def __init__(self, pin_=FUSE_PIN):
+    def __init__(self, pin_=TRIGGER_PIN):
         self.pin = pin_
 
     def setup(self):
@@ -20,5 +20,5 @@ if __name__ == '__main__':
     trigger = Trigger_control_client()
     trigger.setup()
     while True:
-        print trigger.read()
+        print (trigger.read())
         time.sleep(0.1)

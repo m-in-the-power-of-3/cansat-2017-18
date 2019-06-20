@@ -1,256 +1,149 @@
-import time
-
+from control_functions import *
 from settings import *
-from errors import *
-from functions_for_main import *
-
-STATE = {"error": -1,
-         "init": 0,
-         "before start": 1,
-         "in the rocket": 2,
-         "free fall": 3,
-         "descent by parachute": 4}
-
-SMS_ERROR = {"none": "Error: none",
-             "npna io": "Error: Init io npna error",
-             "uavtalk init": "Error: Init uavtalk error.",
-             "revolution init": "Error: Init revolution error",
-             "tsl2561 init": "Error: Init tsl2561 error",
-             "ads1115 init": "Error: Init ads1115 error",
-             "trigger init": "Error: Init trigger error",
-             "gsm init": "Error: Init gsm error",
-             "buzzer init": "Error: Init buzzer error",
-             "fuse init": "Error: Init fuse error",
-             "pressure": "Error: Pressure value error",
-             "trigger": "Error: Trigger error",
-             "gsm sms": "Error: Gsm error",
-             "tsl2561": "Error: Tsl2561 value error",
-             "battery": "Error: Battary error",
-             "bmp180 init": "Error: Init BMP180 error",
-             "bmp180": "Error: BMP180 error"}
-
-SMS_MESSAGE = {"error": "Fatal error",
-               "init": "Init OK",
-               "rocket": "I am in the rocket",
-               "separated": "I was separated from rocket",
-               "parachute": "I was opened parachute"}
-
-
+import log
+import time
+#nmcli dev wifi connect Belochka password Acetican3 ifname wlan0
 if __name__ == '__main__':
-    sms_error = SMS_ERROR["none"]
+    start_time = time.time()
+    board_state = BOARD_SATAE_INIT
+    tic = 0
 
-    Pressure_at_the_start = 0
-    Height_now = 0
-    # State at the begining
-    State = STATE["init"]
-    # ================================================================
-    # Work cycle
-    # ================================================================
     while True:
-        try:
-            check_data()
-        except BatteryError:
-            deb_print("Battery error")
-            sms_error = SMS_ERROR["battery"]
-            State = STATE["error"]
-        except BMP180Error:
-            deb_print("BMP180 error")
-            sms_error = SMS_ERROR["bmp180"]
-            State = STATE["error"]
-        # -------------------------------------------------------------------<======
-        except BaseException:
-            sms_error = "Unknown error 1"
-            State = STATE["error"]
-        # -------------------------------------------------------------------<======
+        print(board_state)
+        if board_state == BOARD_SATAE_INIT:
+            uart = init_uart()
+            i2c = init_i2c()
 
-        if (State == STATE["init"]):
-            # ================================================================
-            # Init block
-            # ================================================================
-            try:
-                init_all()
-            except IOError:
-                deb_print("Init IO error")
-                sms_error = SMS_ERROR["npna io"]
-                State = STATE["error"]
-            except TriggerError:
-                deb_print("Init trigger error (init block)")
-                sms_error = SMS_ERROR["trigger init"]
-                State = STATE["error"]
-            except UAVTalkError:
-                deb_print("Init UAVTalk error (init block)")
-                sms_error = SMS_ERROR["uavtalk init"]
-                State = STATE["error"]
-            except RevolutionError:
-                deb_print("Init revolution error (init block)")
-                sms_error = SMS_ERROR["revolution init"]
-                State = STATE["error"]
-            except TSL2561Error:
-                deb_print("Init tsl2561 error (init block)")
-                sms_error = SMS_ERROR["tsl2561 init"]
-                State = STATE["error"]
-            except ADS1115Error:
-                deb_print("Init ads1115 error (init block)")
-                sms_error = SMS_ERROR["ads1115 init"]
-                State = STATE["error"]
-            except GsmError:
-                deb_print("Init gsm error (init block)")
-                sms_error = SMS_ERROR["gsm init"]
-                State = STATE["error"]
-            except BuzzerError:
-                deb_print("Init buzzer error (init block)")
-                sms_error = SMS_ERROR["buzzer init"]
-                State = STATE["error"]
-            except FuseError:
-                deb_print("Init Fuse error (init block)")
-                sms_error = SMS_ERROR["fuse init"]
-                State = STATE["error"]
-            except BMP180Error:
-                deb_print("Init BMP180 error (init block)")
-                sms_error = SMS_ERROR["bmp180 init"]
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
-            except BaseException:
-                sms_error = "Unknown error 2"
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
+            trigger_hardware = Trigger_interface(TRIGGER_PIN)
+            trigger_hardware.init()
+
+            fuse_hardware = []
+            fuse_hardware.append(Fuse_interface(FUSE_1_PIN))
+            fuse_hardware.append(Fuse_interface(FUSE_2_PIN))
+            for fuse in fuse_hardware:
+                fuse.init()
+
+            motor_hardware = Motor_interface(MOTOR_PIN)
+            motor_hardware.init()
+
+            data_log = log.Log_control_client(LOG_BASE_PATH)
+            data_log.setup()
+
+            if (i2c is None) or (uart is None):
+                board_state = BOARD_SATAE_ERROR
+                continue
+
+            data_hardware = []
+            data_hardware.append(Ads1115_interface(i2c))
+            data_hardware.append(Bmp180_interface(i2c))
+            data_hardware.append(Tsl2561_interface(i2c))
+            for hardware in data_hardware:
+                hardware.init()
+
+            flight_hardware = Inav_interface(uart)
+            flight_hardware.init()
+
+            rc_hardware = Send_manager()
+            rc_hardware.init()
+            rc_hardware.start()
+
+            buzzer_hardware = Buzzer_interface(BUZZER_PIN)
+            buzzer_hardware.init()
+
+            i2c_rc_hardware = Inav_rc_interface(i2c)
+            i2c_rc_hardware.init()
+
+            all_hardware = data_hardware + [buzzer_hardware] + [flight_hardware]
+
+            observer = Observer()
+            observer.init_lux_observer(LUX_LEVEL_K)
+            observer.init_gps_observer(LAT_MIN, LON_MIN, LAT_MAX, LON_MAX)
+            observer.init_height_observer(None)
+
+            board_state = BOARD_SATAE_BEFORE_START
+
+        elif board_state == BOARD_SATAE_BEFORE_START:
+            if observer.pressure_at_start is not None:
+                if trigger_hardware.get_data():
+                    observer.find_lux_min(data_buf[TSL2561_NUM])
+                    if (observer.lux_min is not None) and (observer.lux_max is not None):
+                        board_state = BOARD_SATAE_IN_THE_ROCKET
+                else:
+                    observer.find_lux_max(data_buf[TSL2561_NUM])
             else:
-                try:
-                    deb_print("pressure")
-                    save_pressure_at_start()
-                    deb_print("Finish init block")
-                    sms([SMS_MESSAGE["init"], sms_error])
-                    State = STATE["before start"]
-                    count_max_lux()
-                except RevolutionError:
-                    deb_print("Error with pressure value")
-                    sms_error = SMS_ERROR["pressure"]
-                    State = STATE["error"]
-                except GsmError:
-                    deb_print("Gsm sms error")
-                    sms_error = SMS_ERROR["gsm sms"]
-                    State = STATE["error"]
-                except BMP180Error:
-                    deb_print("BMP180 error")
-                    sms_error = SMS_ERROR["bmp180"]
-                    State = STATE["error"]
-                # -------------------------------------------------------------------<======
-                except BaseException:
-                    sms_error = "Unknown error 3"
-                    State = STATE["error"]
-                # -------------------------------------------------------------------<======
+                observer.init_height_observer(data_buf[TSL2561_NUM])
 
-            continue
+        elif board_state == BOARD_SATAE_IN_THE_ROCKET:
+            if observer.compare_lux(data_buf[TSL2561_NUM]):
+                timeout_end = time.time() + MOTOR_TIMEOUT
+                motor_hardware.control(True)
+                board_state = BOARD_SATAE_OPEN_BEAMS
+            else:
+                observer.find_lux_min(data_buf[TSL2561_NUM])
 
-        elif (State == STATE["before start"]):
-            # ================================================================
-            # Before start block
-            # ================================================================
-            try:
-                if (check_trigger()):
-                    sms([SMS_MESSAGE["rocket"], sms_error])
-                    State = STATE["in the rocket"]
-                    count_min_lux()
-                else:
-                    print "trigger"
-                    count_max_lux()
-            except TriggerError:
-                deb_print("Trigger error")
-                sms_error = SMS_ERROR["trigger"]
-                State = STATE["error"]
-            except GsmError:
-                deb_print("Gsm sms error")
-                sms_error = SMS_ERROR["gsm sms"]
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
-            except BaseException:
-                sms_error = "Unknown error 4"
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
+        elif board_state == BOARD_SATAE_OPEN_BEAMS:
+            if time.time() > timeout_end:
+                timeout_end = time.time() + FUSE_TIMEOUT
+                motor_hardware.control(False)
+                fuse_hardware[0].control(True)
+                board_state = BOARD_SATAE_DROP_PARACHUTE
 
-            continue
+        elif board_state == BOARD_SATAE_DROP_PARACHUTE:
+            if time.time() > timeout_end:
+                fuse_hardware[0].control(False)
+                board_state = BOARD_SATAE_LENDING
 
-        elif (State == STATE["in the rocket"]):
-            # ================================================================
-            # In the rocket block
-            # ================================================================
-            try:
-                if (check_lux()):
-                    sms([SMS_MESSAGE["separated"], sms_error])
-                    State = STATE["free fall"]
-                else:
-                    count_min_lux()
-            except GsmError:
-                deb_print("Gsm sms error")
-                sms_error = SMS_ERROR["gsm sms"]
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
-            except BaseException:
-                sms_error = "Unknown error 5"
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
+        elif board_state == BOARD_SATAE_LENDING:
+            if observer.compare_height(data_buf[BMP180_NUM], HEIGHT_WP):
+                board_state = BOARD_SATAE_WP
+            else:
+                i2c_rc_hardware.send_message(MESSAGE_LENDING)
 
-            continue
+        elif board_state == BOARD_SATAE_WP:
+            if observer.compare_gps(data_buf[INAV_GPS_DATA_NUM]):
+                board_state = BOARD_SATAE_DROP
+                timeout_end = time.time() + FUSE_TIMEOUT
+                fuse_hardware[1].control(True)
+            else:
+                i2c_rc_hardware.send_message(MESSAGE_WP)
 
-        elif (State == STATE["free fall"]):
-            # ================================================================
-            # Free fall block
-            # ================================================================
-            try:
-                if (check_height(HEIGHT_PARACHUTE)):
-                    sms([SMS_MESSAGE["parachute"], sms_error])
-                    open_parachute()
-                    State = STATE["descent by parachute"]
-            except GsmError:
-                deb_print("Gsm sms error")
-                sms_error = SMS_ERROR["gsm sms"]
-                State = STATE["error"]
-            except BMP180Error:
-                deb_print("BMP180 error")
-                sms_error = SMS_ERROR["bmp180"]
-                State = STATE["error"]
-            except RevolutionError:
-                deb_print("Revolution error")
-                sms_error = SMS_ERROR["pressure"]
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
-            except BaseException:
-                sms_error = "Unknown error 6"
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
+        elif board_state == BOARD_SATAE_DROP:
+            if time.time() > timeout_end:
+                fuse_hardware[1].control(False)
+                board_state = BOARD_SATAE_RTH
 
-            continue
+        elif board_state == BOARD_SATAE_RTH:
+            pass
 
-        elif (State == STATE["descent by parachute"]):
-            # ================================================================
-            # Descent by parachute block
-            # ================================================================
-            try:
-                deb_print("We are desenting by parachute")
-            except GsmError:
-                deb_print("Gsm sms error")
-                sms_error = SMS_ERROR["gsm sms"]
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
-            except BaseException:
-                sms_error = "Unknown error 7"
-                State = STATE["error"]
-            # -------------------------------------------------------------------<======
 
-            continue
+        elif board_state == BOARD_SATAE_FILESAFE:
+            pass
+        else:
+            pass
 
-        elif (State == STATE["error"]):
-            # ================================================================
-            # Error block
-            # ================================================================
-            try:
-                if not (sms_error == "gsm sms"):
-                    sms([SMS_MESSAGE["error"], sms_error])
-                if not (sms_error == SMS_ERROR["buzzer init"]):
-                    buzzer_control(True)
-                    time.sleep(7)
-            finally:
-                deinit_all()
+        data_buf = []
+        for hardware in data_hardware:
+            hardware.update()
+            data_buf = data_buf + hardware.get_data()
+        flight_hardware.update()
+        data_buf = data_buf + flight_hardware.get_data()
+        data_buf = data_buf + flight_hardware.get_gps_data()
+        data_buf = data_buf + flight_hardware.get_attitude()
 
-            break
+        data_buf = [time.time() - start_time] + data_buf
 
+        data_buf = hide_none(data_buf)
+        data = pack_data(data_buf)
+
+        data_log.write_data(data_buf)
+        print(data_buf)
+
+        rc_hardware.add_data(data)
+
+        if tic == 20:
+            for hardware in all_hardware:
+                if hardware.control_client is None:
+                    hardware.init()
+            tic = 0
+        else:
+            tic += 1
