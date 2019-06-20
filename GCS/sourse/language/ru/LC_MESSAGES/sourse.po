@@ -1,0 +1,160 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR ORGANIZATION
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: 2019-05-11 09:05+0300\n"
+"PO-Revision-Date: 2019-05-11 09:13+0300\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 1.8.11\n"
+"Last-Translator: \n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"Language: ru_RU\n"
+
+#: sourse.py:105
+msgid "Disconnect"
+msgstr "Разорвать соединение"
+
+#: sourse.py:107
+msgid "Connect"
+msgstr "Подключиться"
+
+#: sourse.py:144
+msgid ""
+"==================\n"
+"State list\n"
+"=================="
+msgstr ""
+"==================\n"
+"Список состояний\n"
+"=================="
+
+#: sourse.py:148 sourse.py:154 sourse.py:164 sourse.py:200 sourse.py:218
+#: sourse.py:219 sourse.py:221
+msgid "None"
+msgstr "---"
+
+#: sourse.py:151
+msgid "----------------------------------------"
+msgstr ""
+
+#: sourse.py:153
+msgid "State now"
+msgstr "текущее состояние"
+
+#: sourse.py:157
+msgid ""
+"==================\n"
+"Connection data\n"
+" =================="
+msgstr ""
+"==================\n"
+"Состояние соединения\n"
+" =================="
+
+#: sourse.py:159
+msgid "Connection type"
+msgstr "Тип соединения"
+
+#: sourse.py:160
+msgid "Log reply"
+msgstr "Воспроизведение журнала"
+
+#: sourse.py:163
+msgid "Packet count"
+msgstr "Число пакетов"
+
+#: sourse.py:178
+msgid "Clear"
+msgstr "Отчистить"
+
+#: sourse.py:190 sourse.py:202 sourse.py:210
+msgid "Waiting"
+msgstr "Ожидание"
+
+#: sourse.py:206
+msgid "Unknown state"
+msgstr "Неизвестное состояние"
+
+#: sourse.py:212
+msgid "Terminated"
+msgstr "Выполнено"
+
+#: sourse.py:213
+msgid "Running"
+msgstr "В процессе"
+
+#: sourse.py:278
+msgid "Acceleration"
+msgstr "Ускорение"
+
+#: sourse.py:280 sourse.py:294 sourse.py:308 sourse.py:320 sourse.py:332
+#: sourse.py:344
+msgid "Time"
+msgstr "Время"
+
+#: sourse.py:292
+msgid "Gyro"
+msgstr "Угловая скорость"
+
+#: sourse.py:306
+msgid "Temperature"
+msgstr "Температура"
+
+#: sourse.py:318
+msgid "Pressure"
+msgstr "Давление"
+
+#: sourse.py:330
+msgid "Mag"
+msgstr "Магнитометр"
+
+#: sourse.py:342
+msgid "Voltage"
+msgstr "Напряжение"
+
+#: sourse.py:502 sourse.py:637
+msgid "Send"
+msgstr "Отправить"
+
+#: sourse.py:622
+msgid "Settings"
+msgstr "Настройки"
+
+#: sourse.py:658
+msgid "StrelA"
+msgstr "СтрелА"
+
+#: sourse.py:663
+msgid "Welcome"
+msgstr "Добро пожаловать"
+
+#: sourse.py:683
+msgid "&File"
+msgstr "&Файл"
+
+#: sourse.py:685
+msgid "&Exit"
+msgstr "&Выход"
+
+#: sourse.py:687
+msgid "Exit"
+msgstr "Выход"
+
+#: sourse.py:694
+msgid "&Tools"
+msgstr "&Инструменты"
+
+#: sourse.py:695
+msgid "&Settings"
+msgstr "&Настройки"
+
+#: sourse.py:702
+msgid "&Help"
+msgstr "&Помощь"

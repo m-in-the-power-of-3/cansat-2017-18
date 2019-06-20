@@ -1,0 +1,2 @@
+class DataThreadEnd(Exception):
+    pass
