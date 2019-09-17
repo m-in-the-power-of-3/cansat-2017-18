@@ -1,7 +1,7 @@
 import RPi.GPIO as GPIO
 import time
 
-FUSE_PIN = 7
+FUSE_PIN = 15
 
 
 class Fuse_control_client():

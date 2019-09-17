@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 from MSPV2 import *
+from i2cdev import *
 PORT = '/dev/ttyS2'
 DEV_ADDRESS = 0x73
+
+
 class Inav_control_client():
     CW0_DEG = 1
     CW90_DEG = 2
@@ -24,6 +27,7 @@ class Inav_control_client():
         self.mag_alignment = Inav_control_client.CW0_DEG
 
         self.attitude = [None, None, None]
+        self.altitude = [None, None, None]
 
         # fix | num sat | lat |lon | alt | speed | course | hdop
         self.gps_data = [None, None, None, None, None, None, None, None]
@@ -87,6 +91,12 @@ class Inav_control_client():
             return
         self.attitude = data
 
+    def update_altitude(self):
+        data = self.MSP.read_altitude()
+        if data is None:
+            return
+        self.altitude = data
+
     def update_gps_data(self):
         data = self.MSP.read_gps_data()
         if data is None:
@@ -98,6 +108,9 @@ class Inav_control_client():
 
     def get_attitude(self):
         return self.attitude
+
+    def get_altitude(self):
+        return self.altitude
 
     def is_gps_get_fix(self):
         if self.gps_data[0] == 0:
@@ -120,16 +133,26 @@ class Inav_rc_i2c_control_client():
     def cut_data(self, data):
         message = []
         for value in data:
-            message.append(data >> 8)
-            message.append(data % 256)
+            message.append(value % 256)
+            message.append(value >> 8)
         return message
 
     def send_data(self, data):
-        message = cut_data(data)
+        print (data)
+        message = self.cut_data(data)
         self.send_message(message)
 
     def send_message(self, message):
+        self.i2c_line.set_addr(self.i2c_addr)
         self.i2c_line.write(message)
+
+
+def cut_data(data):
+    message = []
+    for value in data:
+        message.append(value % 256)
+        message.append(value >> 8)
+    return message
 
 if __name__ == '__main__':
     Uart = serial.Serial(PORT)
@@ -140,7 +163,18 @@ if __name__ == '__main__':
     Uart.timeout = 1
     Naze = Inav_control_client(Uart)
     Naze.setup()
+    i2c_line = I2C(0)
+    i2c_line.set_addr(0x73)
+    i2c_line.set_timeout(20)
+    stm = Inav_rc_i2c_control_client(i2c_line)
+    stm.setup()
     while True:
         print('========================')
-        Naze.update_data()
-        print(Naze.get_data())
+        #Naze.update_data()
+        #Naze.update_attitude()
+        #Naze.update_gps_data()
+        stm.send_data([1500, 1500, 1150, 1500, 1000, 1000, 1100, 1800])
+        #print(Naze.get_data())
+        #print(Naze.get_attitude())
+        #print(Naze.get_gps_data())
+

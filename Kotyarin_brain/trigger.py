@@ -1,7 +1,7 @@
 import RPi.GPIO as GPIO
 import time
 
-TRIGGER_PIN = 24
+TRIGGER_PIN = 13
 
 
 class Trigger_control_client ():

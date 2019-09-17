@@ -1,6 +1,7 @@
 from settings import *
 import threading
 import os
+import time
 import struct
 import serial
 import i2cdev
@@ -15,60 +16,6 @@ import inav
 import motor
 import fuse
 import trigger
-
-
-class Send_manager():
-    def __init__(self):
-        self.data = None
-        self.stop_flag = False
-
-    def init(self):
-        self.rc_hardware = []
-        self.rc_hardware.append(Socket_interface(IP, PORT))
-        self.rc_hardware.append(Nrf24l01_interface([CE_PIN, CHANNEL, PIPES,
-                                                    NRF24_FREQ, ADDRESS_WIDTH,
-                                                    DATA_RATE, CRC_LEN]))
-        for hardware in self.rc_hardware:
-            hardware.init()
-
-        self.thread = threading.Thread(target=self.send_data)
-        self.thread.daemon = True
-        self.lock_stop_flag = threading.Lock()
-        self.lock_data = threading.Lock()
-
-    def start(self):
-        self.thread.start()
-
-    def add_data(self, data):
-        self.lock_data.acquire()
-        self.data = data
-        self.lock_data.release()
-
-    def send_data(self):
-        self.lock_stop_flag.acquire()
-        if self.stop_flag:
-            self.lock_stop_flag.release()
-            return
-        self.lock_stop_flag.release()
-
-        self.lock_data.acquire()
-        data = self.data
-        self.data = None
-        self.lock_data.release()
-
-        for hardware in self.rc_hardware:
-            if data is not None:
-                hardware.send(data)
-
-            if hardware.control_client is None:
-                hardware.init()
-
-    def stop(self):
-        self.lock_stop_flag.acquire()
-        self.stop_flag = True
-        self.lock_stop_flag.release()
-        self.thread.join()
-
 
 class Inav_interface():
     def __init__(self, bus):
@@ -276,8 +223,11 @@ class Buzzer_interface():
             try:
                 if mode:
                     self.control_client.on()
+                    time.sleep(0.02)
                 else:
                     self.control_client.off()
+                    time.sleep(0.02)
+
             except Exception as e:
                 print (e)
                 self.control_client = None
@@ -309,9 +259,9 @@ class Motor_interface():
         if self.control_client is not None:
             try:
                 if mode:
-                    self.control_client.on()
+                    self.control_client.start()
                 else:
-                    self.control_client.off()
+                    self.control_client.stop()
             except Exception as e:
                 print (e)
                 self.control_client = None
@@ -383,7 +333,7 @@ class Inav_rc_interface():
 
     def init(self):
         try:
-            self.control_client = socket_data.Inav_rc_i2c_control_client(self.bus)
+            self.control_client = inav.Inav_rc_i2c_control_client(self.bus)
             self.control_client.setup()
         except Exception as e:
             print (e)
@@ -403,7 +353,7 @@ class Inav_rc_interface():
     def send_message(self, message):
         if self.control_client is not None:
             try:
-                self.control_client.send_message(data)
+                self.control_client.send_message(message)
             except Exception as e:
                 print (e)
                 self.control_client = None
@@ -458,17 +408,21 @@ class Observer():
         pass
 
     def init_lux_observer(self, multiplier=0.5):
-        self.lux_min = 65537
-        self.lux_max = 0
+        self.lux_min = None
+        self.lux_max = None
         self.lux_level_multiplier = multiplier
 
     def find_lux_min(self, lux):
         if lux is not None:
+            if self.lux_min is None:
+                self.lux_min = lux
             if (lux < self.lux_min):
                 self.lux_min = lux
 
     def find_lux_max(self, lux):
         if lux is not None:
+            if self.lux_max is None:
+                self.lux_max = lux
             if (lux > self.lux_max):
                 self.lux_max = lux
 
@@ -482,31 +436,78 @@ class Observer():
 
     def init_height_observer(self, pressure):
         self.pressure_at_start = pressure
+        self.max_height = None
+        self.prev_five_values = 0
+        self.five_values = None
+        self.tic = 0
 
     def find_height(self, pressure):
         if pressure is not None:
-            x = pressure / pressure_at_start
+            x = pressure / self.pressure_at_start
             return 44330 * (1.0 - pow(x, 0.1903))
         return None
 
     def compare_height(self, pressure, height):
         if pressure is not None:
-            height_now = find_height(pressure)
+            height_now = self.find_height(pressure)
             if (height >= height_now):
                 return True
             else:
                 return False
         return False
 
-    def init_gps_observer(self, lat_min, lon_min, lat_max, lon_max):
-        self.lat_min = lat_min
-        self.lon_min = lon_min
-        self.lat_max = lat_max
-        self.lon_max = lon_max
+    def compare_height_fall(self, pressure):
+        if pressure is not None:
+            height_now = self.find_height(pressure)
+            if self.max_height < height_now:
+                self.max_height = height_now
+            if self.five_values is None:
+                self.prev_five_values += height_now
+                self.tic += 1
+                if self.tic >= 5:
+                    self.five_values = 0
+                    self.tic = 0
+                return False
+            if self.tic < 5:
+                self.five_values += height_now
+                self.tic += 1
+            else:
+                if (self.five_values - self.prev_five_values) < 0:
+                    return True
+                self.prev_five_values = self.five_values
+                self.five_values = 0
+                self.tic = 0
+        return False
+
+    def init_voltage_observer(self, k, level):
+        self.k = k
+        self.level = level
+        self.count = range(len(self.k))
+
+    def compare_voltage(self, voltage):
+        for i in self.count:
+            if voltage[i] is None:
+                return False
+            if voltage[i] < RAW_VOLTAGE_MIN:
+                return False
+        sum = 0
+        for i in self.count:
+            if ((voltage[i] * self.k[i]) - sum)  < self.level:
+                return True
+            sum = voltage[i] * self.k[i]
+        return False
+
+    def init_gps_observer(self, square):
+        self.lat_min = square[0]
+        self.lon_min = square[1]
+        self.lat_max = square[2]
+        self.lon_max = square[3]
 
     def compare_gps(self, lat, lon):
         if (lat is not None) and (lon is not None):
-            if (lat >= lat_min) and (lat <= lat_max) and (lon >= lon_min) and (lon <= lon_max):
+            lat = lat / 10000000.0
+            lon = lon / 10000000.0
+            if (lat >= self.lat_min) and (lat <= self.lat_max) and (lon >= self.lon_min) and (lon <= self.lon_max):
                 return True
             else:
                 return False
@@ -586,10 +587,13 @@ def init_internet():
 # Actions
 # ================================================================
 def hide_none(buf):
+    return_buf = []
     for i in range(len(buf)):
         if buf[i] is None:
-            buf[i] = 0
-    return buf
+            return_buf.append(0)
+        else:
+            return_buf.append(buf[i])
+    return return_buf
 
 
 def pack_data(buf):

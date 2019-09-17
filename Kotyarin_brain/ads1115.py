@@ -2,7 +2,7 @@
 from i2cdev import *
 import time
 
-DEV_ADDRESS = 0x49
+DEV_ADDRESS = 0x48
 # depends on ADDR sel level:
 # GND: 0x48
 # VDD: 0x49
@@ -18,7 +18,7 @@ MUX = 0x04
 # 0x05: AIN1 - GND
 # 0x06:	AIN2 - GND
 # 0x07:	AIN3 - GND
-PGA = 0x00
+PGA = 0x02
 # 0x00:	+-6,144 B
 # 0x01:	+-4,096 B
 # 0x02:	+-2,048 B

@@ -19,7 +19,6 @@ class Motor_control_client():
     def stop(self):
         GPIO.output(self.pin, False)
 
-
 if __name__ == '__main__':
     fuse = Motor_control_client()
     fuse.setup()

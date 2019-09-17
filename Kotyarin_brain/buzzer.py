@@ -3,7 +3,7 @@ import threading
 import RPi.GPIO as GPIO
 import time
 
-BUZZER_PIN = 12
+BUZZER_PIN = 15
 
 ON_VALUE = 2000
 OFF_VALUE = 0
@@ -21,7 +21,7 @@ class Buzzer_control_client():
         GPIO.setup(self.pin, GPIO.OUT)
 
         self.thread = threading.Thread(target=self.pwm)
-        self.thread.daemon = True
+        self.thread.daemon = False
         self.lock_time = threading.Lock()
         self.lock_stop_flag = threading.Lock()
 
@@ -59,7 +59,7 @@ class Buzzer_control_client():
 
         self.lock_time.acquire()
         self.time_high = value / 1000000.0
-        self.time_low = 0.02 - self.time_high
+        self.time_low = 0.005 - self.time_high
         self.lock_time.release()
 
     def on(self):

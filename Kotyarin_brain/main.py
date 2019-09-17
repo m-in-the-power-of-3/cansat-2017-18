@@ -2,14 +2,14 @@ from control_functions import *
 from settings import *
 import log
 import time
-#nmcli dev wifi connect Belochka password Acetican3 ifname wlan0
+import inav
+
 if __name__ == '__main__':
     start_time = time.time()
     board_state = BOARD_SATAE_INIT
     tic = 0
 
     while True:
-        print(board_state)
         if board_state == BOARD_SATAE_INIT:
             uart = init_uart()
             i2c = init_i2c()
@@ -43,9 +43,13 @@ if __name__ == '__main__':
             flight_hardware = Inav_interface(uart)
             flight_hardware.init()
 
-            rc_hardware = Send_manager()
-            rc_hardware.init()
-            rc_hardware.start()
+            rc_hardware = []
+            rc_hardware.append(Socket_interface(IP, PORT))
+            rc_hardware.append(Nrf24l01_interface([CE_PIN, CHANNEL, PIPES,
+                                                   NRF24_FREQ, ADDRESS_WIDTH,
+                                                   DATA_RATE, CRC_LEN]))
+            for hardware in rc_hardware:
+                hardware.init()
 
             buzzer_hardware = Buzzer_interface(BUZZER_PIN)
             buzzer_hardware.init()
@@ -53,75 +57,131 @@ if __name__ == '__main__':
             i2c_rc_hardware = Inav_rc_interface(i2c)
             i2c_rc_hardware.init()
 
-            all_hardware = data_hardware + [buzzer_hardware] + [flight_hardware]
+            message_arm_conv = inav.cut_data(MESSAGE_ARM)
+            message_lending_conv = inav.cut_data(MESSAGE_LENDING)
+            message_wp_conv = inav.cut_data(MESSAGE_WP)
+            message_hp_conv = inav.cut_data(MESSAGE_HP)
+            message_rth_conv = inav.cut_data(MESSAGE_RTH)
+            message_fs_conv = inav.cut_data(MESSAGE_FS)
+
+            all_hardware = rc_hardware + data_hardware + [buzzer_hardware] + [flight_hardware] + [i2c_rc_hardware]
 
             observer = Observer()
             observer.init_lux_observer(LUX_LEVEL_K)
-            observer.init_gps_observer(LAT_MIN, LON_MIN, LAT_MAX, LON_MAX)
+            observer.init_gps_observer(DROP_SQUARE)
+            observer.init_voltage_observer(K, VOLTAGE_MIN)
             observer.init_height_observer(None)
 
-            board_state = BOARD_SATAE_BEFORE_START
+            board_state = BOARD_FIRST_DATA
+
+            timeout_end = None
+
+        elif board_state == BOARD_FIRST_DATA:
+            observer.find_lux_max(data_buf[TSL2561_NUM])
+            observer.init_height_observer(data_buf[BMP180_NUM])
+            if (observer.pressure_at_start is not None) and (observer.lux_max is not None):
+                if timeout_end is None:
+                    buzzer_hardware.control(True)
+                    timeout_end = time.time() + BUZZER_TIMER
+                elif time.time() > timeout_end:
+                    buzzer_hardware.control(False)
+                    board_state = BOARD_SATAE_BEFORE_START
+                    timeout_end = None
+                else:
+                    time.sleep(0.02)
 
         elif board_state == BOARD_SATAE_BEFORE_START:
-            if observer.pressure_at_start is not None:
-                if trigger_hardware.get_data():
-                    observer.find_lux_min(data_buf[TSL2561_NUM])
-                    if (observer.lux_min is not None) and (observer.lux_max is not None):
-                        board_state = BOARD_SATAE_IN_THE_ROCKET
-                else:
-                    observer.find_lux_max(data_buf[TSL2561_NUM])
+            if trigger_hardware.get_data():
+                observer.find_lux_min(data_buf[TSL2561_NUM])
+                if (observer.lux_min is not None):
+                    if timeout_end is None:
+                        buzzer_hardware.control(True)
+                        timeout_end = time.time() + BUZZER_TIMER
+                    elif time.time() > timeout_end:
+                        buzzer_hardware.control(False)
+                        board_state = BOARD_SATAE_WAIT_100
+                    else:
+                        time.sleep(0.02)
+
             else:
-                observer.init_height_observer(data_buf[TSL2561_NUM])
+                observer.find_lux_max(data_buf[TSL2561_NUM])
+
+        elif board_state == BOARD_SATAE_WAIT_100:
+            if (data_buf[BMP180_NUM] is not None) and (not observer.compare_height(data_buf[BMP180_NUM], HEIGHT_START)):
+                observer.max_height = 100
+                board_state = BOARD_SATAE_IN_THE_ROCKET
 
         elif board_state == BOARD_SATAE_IN_THE_ROCKET:
-            if observer.compare_lux(data_buf[TSL2561_NUM]):
-                timeout_end = time.time() + MOTOR_TIMEOUT
-                motor_hardware.control(True)
-                board_state = BOARD_SATAE_OPEN_BEAMS
+            if observer.compare_lux(data_buf[TSL2561_NUM]) or observer.compare_height(data_buf[BMP180_NUM], observer.max_height * HEIGHT_PART):
+                timeout_end = time.time() + SEPARATE_TIMEOUT
+                board_state = BOARD_SATAE_SEPARATE_WAIT
             else:
                 observer.find_lux_min(data_buf[TSL2561_NUM])
 
-        elif board_state == BOARD_SATAE_OPEN_BEAMS:
+        elif board_state == BOARD_SATAE_SEPARATE_WAIT:
             if time.time() > timeout_end:
-                timeout_end = time.time() + FUSE_TIMEOUT
-                motor_hardware.control(False)
+                timeout_end = [time.time() + MOTOR_TIMEOUT, time.time() + FUSE_TIMEOUT]
+                end = [0, 0]
+                motor_hardware.control(True)
                 fuse_hardware[0].control(True)
-                board_state = BOARD_SATAE_DROP_PARACHUTE
+                board_state = BOARD_SATAE_PREPARE_FOR_FLIGHT
 
-        elif board_state == BOARD_SATAE_DROP_PARACHUTE:
-            if time.time() > timeout_end:
+        elif board_state == BOARD_SATAE_PREPARE_FOR_FLIGHT:
+            if time.time() > timeout_end[0]:
+                motor_hardware.control(False)
+                end[0] = 1
+
+            if time.time() > timeout_end[1]:
                 fuse_hardware[0].control(False)
+                end[1] = 1
+
+            if ((end[0] == 1) and (end[1] == 1)):
+                i2c_rc_hardware.send_message(message_arm_conv)
                 board_state = BOARD_SATAE_LENDING
 
         elif board_state == BOARD_SATAE_LENDING:
             if observer.compare_height(data_buf[BMP180_NUM], HEIGHT_WP):
                 board_state = BOARD_SATAE_WP
+                observer.init_gps_observer(DROP_SQUARE)
+                i2c_rc_hardware.send_message(message_wp_conv)
             else:
-                i2c_rc_hardware.send_message(MESSAGE_LENDING)
-
+                i2c_rc_hardware.send_message(message_lending_conv)
         elif board_state == BOARD_SATAE_WP:
-            if observer.compare_gps(data_buf[INAV_GPS_DATA_NUM]):
+            if observer.compare_gps(data_buf[INAV_GPS_DATA_NUM + 2], data_buf[INAV_GPS_DATA_NUM + 3]):
+                i2c_rc_hardware.send_message(message_hp_conv)
                 board_state = BOARD_SATAE_DROP
                 timeout_end = time.time() + FUSE_TIMEOUT
                 fuse_hardware[1].control(True)
             else:
-                i2c_rc_hardware.send_message(MESSAGE_WP)
+                i2c_rc_hardware.send_message(message_wp_conv)
 
         elif board_state == BOARD_SATAE_DROP:
             if time.time() > timeout_end:
                 fuse_hardware[1].control(False)
                 board_state = BOARD_SATAE_RTH
+                observer.init_gps_observer(HOME_SQUARE)
+                timeout_end = None
+            i2c_rc_hardware.send_message(message_hp_conv)
 
         elif board_state == BOARD_SATAE_RTH:
-            pass
+            if observer.compare_gps(data_buf[INAV_GPS_DATA_NUM + 2], data_buf[INAV_GPS_DATA_NUM + 3]):
+                i2c_rc_hardware.send_message(message_hp_conv)
+                if timeout_end is None:
+                    buzzer_hardware.control(True)
+                    timeout_end = time.time() + BUZZER_TIMER
+                elif time.time() > timeout_end:
+                    buzzer_hardware.control(False)
+                else:
+                    time.sleep(0.02)
 
+            else:
+                i2c_rc_hardware.send_message(message_rth_conv)
 
         elif board_state == BOARD_SATAE_FILESAFE:
-            pass
-        else:
-            pass
+            i2c_rc_hardware.send_message(message_fs_conv)
 
         data_buf = []
+        data_send_buf = []
         for hardware in data_hardware:
             hardware.update()
             data_buf = data_buf + hardware.get_data()
@@ -130,15 +190,20 @@ if __name__ == '__main__':
         data_buf = data_buf + flight_hardware.get_gps_data()
         data_buf = data_buf + flight_hardware.get_attitude()
 
-        data_buf = [time.time() - start_time] + data_buf
 
-        data_buf = hide_none(data_buf)
+        data_buf = [time.time() - start_time] + data_buf + [board_state]
+
+        data_buf_log = hide_none(data_buf)
         data = pack_data(data_buf)
 
         data_log.write_data(data_buf)
-        print(data_buf)
 
-        rc_hardware.add_data(data)
+        for hardware in rc_hardware:
+            hardware.send(data)
+
+        if observer.compare_voltage(data_buf[ADS1115_NUM:ADS1115_NUM + 3]):
+            buzzer_hardware.control(True)
+            board_state = BOARD_SATAE_FILESAFE
 
         if tic == 20:
             for hardware in all_hardware:

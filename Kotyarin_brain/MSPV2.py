@@ -42,6 +42,8 @@ class MSPV2():
 
     def __init__(self, port):
         self.uart = port
+        self.begining = struct.pack('<3c', *['$'.encode("utf-8"), 'X'.encode("utf-8"), '<'.encode("utf-8")])
+        self.end_sign = ''.encode("utf-8")
 
     def _crc8_dvb_s2(self, crc, a):
         crc ^= a
@@ -51,20 +53,17 @@ class MSPV2():
             else:
                 crc = (crc << 1) % 256
         return crc
-
     def send_comand(self, data_size, code, data):
-        packet = ['$', 'X', '<', 0, code, data_size] + data
+        len_data = len(data)
+        packet = [0, code, data_size] + data
+
+        byte_packet = struct.pack('<B2H%dH' % len_data, *packet)
 
         checksum = 0
-        for i in struct.pack('<B2H%dH' % len(data), *packet[3:len(packet)]):
+        for i in byte_packet:
             checksum = self._crc8_dvb_s2(checksum, i)
-        packet.append(checksum)
 
-        for i in range(len(packet)):
-            if isinstance(packet[i], str):
-                packet[i] = packet[i].encode("utf-8")
-
-        self.uart.write(struct.pack('<3cB2H%dHB' % len(data), *packet))
+        self.uart.write(self.begining + byte_packet + struct.pack('B', *[checksum]))
 
     def request_packet(self, cmd):
         self.send_comand(0, cmd, [])
