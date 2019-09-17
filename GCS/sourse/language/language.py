@@ -1,0 +1,1 @@
+language_list = ['ru', 'en']

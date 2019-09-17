@@ -1,1 +1,0 @@
-Time, Accel_x, Accel_y, Accel_z,Gyro_x, Gyro_y, Gyro_z, Lux,Voltage_1, Voltage_1, Voltage_1, Voltage_1

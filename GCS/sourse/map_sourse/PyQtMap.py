@@ -1,6 +1,3 @@
-import config
-#from qOSM.config import config
-
 doTrace = False
 
 import json

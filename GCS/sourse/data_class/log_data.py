@@ -1,8 +1,6 @@
 #!/usr/bin/python3
-
-from config import *
 import time
-from sourse.exceptions import *
+
 
 class Data_source():
     def __init__(self, log_path, real_time=True, time_delay=0.01):
@@ -27,7 +25,7 @@ class Data_source():
         # запятая должна присутствовать всегда
         comma = string_data.find(",")
         if (comma == -1):
-            raise DataThreadEnd('Log end')
+            raise EOFError('Log end')
 
         return_data.append(float(string_data[:comma]))
 
@@ -37,7 +35,10 @@ class Data_source():
             if (comma == -1):  # Если не найдена следующая запятая
                 return_data.append(float(string_data[value_ptr:]))
                 break
-            return_data.append(float(string_data[value_ptr: comma]))
+            if string_data[value_ptr: comma] == 'None':
+                return_data.append(0)
+            else:
+                return_data.append(float(string_data[value_ptr: comma]))
 
         if self.time_shift == None:
             self.time_shift = return_data[0]
@@ -58,28 +59,3 @@ class Data_source():
 
     def stop(self):
         self.log.close()
-
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Only for test
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-if __name__ == '__main__':
-    print("start")
-    obJ = Data_source("/home/developer/git/cansat-2017-2018/GCS/log/telemetry_log/telemetry_log.txt")
-    print("start")
-    obJ.start()
-    while True:
-        try:
-            data = obJ.read_data()
-            print (data)
-        except ValueError:
-            print ("end\n")
-            obJ.close()
-            break
-        except KeyboardInterrupt:
-            obJ.close()
-            break
-        except:
-            raise
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
